@@ -30,9 +30,9 @@
     "disk_gb": 6
   },
   "compat": {
-    "level": "bad",
+    "level": "warn",
     "platforms": ["darwin"],
-    "note": "Non fonctionnel sur Mac Intel avec Wine 11 : le serveur reste bloqué à l'initialisation graphique (testé 3 fois, y compris avec -batchmode -nographics et -force-vulkan) et n'écrit jamais sa configuration."
+    "note": "Expérimental sur Mac Intel avec Wine : le serveur démarre et sauvegarde (constaté), malgré des erreurs de shaders, mais il a planté en cours de partie. Prévoyez des sauvegardes fréquentes."
   },
   "ports": [
     {
