@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LANa</title>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--ink:#1d1d1b;--mut:#6b6a66;--line:#dedcd6;--acc:#2f6f5e;--acc-ink:#fff;--bad:#b3392f;--warn:#a9710f;--ok:#2f6f5e}
+@media (prefers-color-scheme:dark){:root{--bg:#161715;--card:#1f201e;--ink:#ecebe6;--mut:#9a9890;--line:#33342f;--acc:#5fb59e;--acc-ink:#0f1a16;--bad:#e5766c;--warn:#d9a441;--ok:#5fb59e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 -apple-system,system-ui,sans-serif}
+main{max-width:940px;margin:0 auto;padding:16px}
+header{display:flex;align-items:baseline;gap:12px;margin:8px 0 14px}
+header a{color:inherit;text-decoration:none}
+h1{font-size:22px;margin:0;letter-spacing:.02em}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:0 0 12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grow{flex:1}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--mut);flex:none}
+.dot.on{background:var(--ok)}.dot.off{background:var(--bad)}.dot.warn{background:var(--warn)}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer}
+button.p{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+button.d{color:var(--bad)}
+button:disabled{opacity:.5;cursor:default}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mut)}
+label.chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink);font-size:14px}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;width:100%}
+input[type=checkbox]{width:auto}
+.hint{font-size:12px;color:var(--mut)}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:13px;cursor:pointer;user-select:none}
+.tag.on{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+.item{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+.checks{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px}
+.msg{font-size:13px;margin:4px 0}.msg.bad{color:var(--bad)}.msg.warn{color:var(--warn)}
+pre{margin:0;max-height:300px;overflow:auto;font:12px/1.4 ui-monospace,Menlo,monospace;white-space:pre-wrap;word-break:break-all}
+#toast{position:sticky;top:0;z-index:5;min-height:0}
+#toast div{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:8px;padding:10px 14px;margin-bottom:10px}
+#toast div.err{border-left-color:var(--bad)}
+a.back{color:var(--mut);text-decoration:none;font-size:14px}
+.badge{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<header><h1><a href="#/">LANa</a></h1><span class="hint" id="ver"></span></header>
+<div id="toast"></div>
+<div id="view"></div>
+</main>
+
+<script>
+const $=s=>document.querySelector(s);
+const mk=(tag,props,...kids)=>{const e=Object.assign(document.createElement(tag),props||{});kids.forEach(k=>e.append(k));return e};
+let timer=null,current=null;
+
+async function api(path,body){
+  const opts=body===undefined?{}:{method:"POST",headers:{"X-LANa":"1","Content-Type":"application/json"},body:JSON.stringify(body)};
+  const r=await fetch(path,opts);
+  const ct=r.headers.get("content-type")||"";
+  return ct.includes("json")?r.json():r.text();
+}
+function toast(text,err){const t=$("#toast");t.innerHTML="";const d=mk("div",{textContent:text,className:err?"err":""});t.append(d);setTimeout(()=>d.remove(),err?9000:5000)}
+async function act(btns,path,body,after){
+  btns.forEach(b=>b.disabled=true);
+  try{const r=await api(path,body||{});toast(r.message||(r.ok?"Fait":"Erreur"),!r.ok);if(r.ok&&after)after(r)}
+  catch(e){toast("Erreur réseau",true)}
+  btns.forEach(b=>b.disabled=false);
+}
+
+// ---------- accueil ----------
+async function home(){
+  const [m,g,list]=await Promise.all([api("/api/machine"),api("/api/games"),api("/api/instances")]);
+  $("#ver").textContent="v"+m.version;
+  const v=$("#view");v.innerHTML="";
+
+  const mc=mk("section",{className:"card"},mk("h2",{textContent:"Cette machine"}));
+  mc.append(mk("div",{textContent:`${m.cpu||m.arch} · ${m.ram_gb??"?"} Go de RAM · ${m.disk_free_gb} Go libres · macOS ${m.macos}`}));
+  const tools=Object.entries(m.tools).map(([k,p])=>`${k} : ${p?"installé":"absent"}`).join(" · ");
+  mc.append(mk("div",{className:"hint",textContent:tools+(m.lan_ip?` · adresse locale ${m.lan_ip}`:"")}));
+  v.append(mc);
+
+  const sv=mk("section",{className:"card"},mk("h2",{textContent:"Mes serveurs"}));
+  if(!list.length)sv.append(mk("div",{className:"hint",textContent:"Aucun serveur installé. Choisissez un jeu ci-dessous."}));
+  list.forEach(s=>{
+    const state=!s.installed?"":s.running?"on":"off";
+    const open=mk("button",{textContent:"Gérer",onclick:()=>location.hash="#/s/"+s.id});
+    sv.append(mk("div",{className:"row",style:"padding:6px 0"},
+      mk("span",{className:"dot "+state}),mk("strong",{textContent:s.name}),
+      mk("span",{className:"badge",textContent:!s.installed?"installation incomplète":s.running?"en marche":"arrêté"}),
+      mk("span",{className:"grow"}),open));
+  });
+  v.append(sv);
+
+  const cat=mk("section",{className:"card"},mk("h2",{textContent:"Installer un jeu"}));
+  g.forEach(game=>{
+    const lvl=game.verdict.level;
+    const btn=mk("button",{className:"p",textContent:"Installer",disabled:lvl==="bad"});
+    btn.onclick=()=>{if(lvl==="warn"&&!confirm(game.verdict.messages.join("\n")+"\n\nInstaller quand même ?"))return;
+      act([btn],"/api/instances",{game:game.id},r=>location.hash="#/install/"+r.job+"/"+r.id)};
+    const box=mk("div",{style:"padding:8px 0;border-top:1px solid var(--line)"},
+      mk("div",{className:"row"},mk("span",{className:"dot "+(lvl==="ok"?"on":lvl==="warn"?"warn":"off")}),mk("strong",{textContent:game.name}),
+        mk("span",{className:"hint",textContent:`RAM ${game.requirements.ram_gb_min}–${game.requirements.ram_gb_recommended} Go · ${game.requirements.disk_gb} Go disque`}),
+        mk("span",{className:"grow"}),btn));
+    game.verdict.messages.forEach(t=>box.append(mk("div",{className:"msg "+(lvl==="bad"?"bad":"warn"),textContent:t})));
+    cat.append(box);
+  });
+  v.append(cat);
+}
+
+// ---------- installation ----------
+async function installView(jobId,instId){
+  const v=$("#view");v.innerHTML="";
+  const log=mk("pre"),head=mk("h2",{textContent:"Installation en cours"});
+  const done=mk("button",{className:"p",textContent:"Ouvrir le serveur",style:"display:none;margin-top:12px",onclick:()=>location.hash="#/s/"+instId});
+  const retry=mk("button",{textContent:"Réessayer",style:"display:none;margin-top:12px",onclick:()=>act([retry],`/api/instances/${instId}/install`,{},r=>location.hash="#/install/"+r.job+"/"+instId)});
+  v.append(mk("a",{className:"back",href:"#/",textContent:"← Accueil"}),mk("section",{className:"card"},head,log,done,retry));
+  async function poll(){
+    const j=await api("/api/jobs/"+jobId);
+    log.textContent=j.lines.join("\n");log.scrollTop=log.scrollHeight;
+    head.textContent=j.state==="running"?j.title+"…":j.state==="done"?"Installation terminée":"Échec de l'installation";
+    done.style.display=j.state==="done"?"":"none";retry.style.display=j.state==="error"?"":"none";
+    if(j.state==="running")timer=setTimeout(poll,2000);
+  }
+  poll();
+}
+
+// ---------- page d'un serveur ----------
+function fieldInput(f,val){
+  const t=f.type;
+  if(t==="bool"){const i=mk("input",{type:"checkbox",checked:!!val});i.get=()=>i.checked;return{el:mk("label",{className:"chk"},i,f.label),get:i.get}}
+  let i;
+  if(t==="enum"){i=mk("select");f.options.forEach(o=>i.append(mk("option",{value:o,textContent:o,selected:o===val})));i.get=()=>i.value}
+  else if(t==="text"){i=mk("input",{value:val??"",maxLength:f.maxlen||200});i.get=()=>i.value}
+  else{i=mk("input",{type:"number",step:"any",min:f.min,max:f.max,value:val});i.get=()=>i.value===""?null:+i.value}
+  const l=mk("label",{},f.label,i);if(f.hint)l.append(mk("span",{className:"hint",textContent:f.hint}));
+  return{el:l,get:i.get};
+}
+function tagsInput(f,val){
+  const box=mk("div",{className:"tags"});
+  f.options.forEach(o=>box.append(mk("span",{className:"tag"+(val.includes(o)?" on":""),textContent:o,onclick:e=>e.target.classList.toggle("on")})));
+  return{el:mk("div",{},mk("div",{className:"hint",style:"margin:8px 0 6px",textContent:f.label}),box),get:()=>[...box.querySelectorAll(".on")].map(e=>e.textContent)};
+}
+function collectionInput(f,val){
+  const box=mk("div"),rows=[];
+  const add=item=>{
+    const card=mk("div",{className:"item"}),grid=mk("div",{className:"grid"}),checks=mk("div",{className:"checks"}),getters={};
+    f.item.forEach(sub=>{const inp=fieldInput(sub,item[sub.key]);getters[sub.key]=inp.get;(sub.type==="bool"?checks:grid).append(inp.el)});
+    const row={getters,card};rows.push(row);
+    card.append(grid,checks,mk("button",{className:"d",textContent:"Supprimer",style:"margin-top:10px",onclick:()=>{rows.splice(rows.indexOf(row),1);card.remove()}}));
+    box.append(card);
+  };
+  val.forEach(add);
+  const defaults=()=>Object.fromEntries(f.item.map(s=>[s.key,s.key==="password"?Math.random().toString(36).slice(2,12):s.default]));
+  return{el:mk("div",{},mk("div",{className:"hint",style:"margin-bottom:8px",textContent:f.hint||""}),box,mk("button",{textContent:"Ajouter",onclick:()=>add(defaults())})),
+    get:()=>rows.map(r=>Object.fromEntries(Object.entries(r.getters).map(([k,g])=>[k,g()])))};
+}
+
+async function serverView(id){
+  const s=await api("/api/instances/"+id);
+  if(s.ok===false){toast(s.message,true);location.hash="#/";return}
+  current=id;
+  const v=$("#view");v.innerHTML="";
+  v.append(mk("a",{className:"back",href:"#/",textContent:"← Accueil"}));
+  if(!s.installed){v.append(mk("section",{className:"card"},mk("div",{textContent:"L'installation de ce serveur n'est pas terminée."}),
+    mk("button",{className:"p",textContent:"Reprendre l'installation",style:"margin-top:10px",onclick:e=>act([e.target],`/api/instances/${id}/install`,{},r=>location.hash="#/install/"+r.job+"/"+id)})));return}
+
+  // état + actions
+  const dot=mk("span",{className:"dot"}),st=mk("strong"),info=mk("span",{className:"hint"});
+  const bStart=mk("button",{className:"p",textContent:"Démarrer"}),bStop=mk("button",{className:"d",textContent:"Arrêter"}),bRe=mk("button",{textContent:"Redémarrer"});
+  const all=[bStart,bStop,bRe];
+  bStart.onclick=()=>act(all,`/api/instances/${id}/start`,{},refresh);
+  bStop.onclick=()=>confirm("Arrêter le serveur ? Les joueurs seront déconnectés.")&&act(all,`/api/instances/${id}/stop`,{},refresh);
+  bRe.onclick=()=>confirm("Redémarrer le serveur ?")&&act(all,`/api/instances/${id}/restart`,{},refresh);
+  const head=mk("section",{className:"card"},mk("div",{className:"row"},dot,st,info,mk("span",{className:"grow"}),bStart,bStop,bRe));
+  head.append(mk("div",{className:"hint",style:"margin-top:8px",textContent:`Connexion : ${s.connect} · ports à ouvrir sur la box : ${s.ports.map(p=>`${p.port}/${p.proto.toUpperCase()}`).join(", ")}`}));
+  v.append(head);
+
+  // paramètres, groupés
+  const getters={},groups={};
+  s.fields.forEach(f=>(groups[f.group]??=[]).push(f));
+  for(const [g,fs] of Object.entries(groups)){
+    const card=mk("section",{className:"card"},mk("h2",{textContent:g}));
+    const grid=mk("div",{className:"grid"});
+    fs.forEach(f=>{
+      const val=s.values[f.key];
+      if(f.type==="collection"){const c=collectionInput(f,val);getters[f.key]=c.get;card.append(c.el);return}
+      if(f.type==="tags"){const t=tagsInput(f,val);getters[f.key]=t.get;card.append(t.el);return}
+      const i=fieldInput(f,val);getters[f.key]=i.get;grid.append(i.el);
+    });
+    card.prepend(grid);card.prepend(card.querySelector("h2"));v.append(card);
+  }
+  const collect=()=>Object.fromEntries(Object.entries(getters).map(([k,g])=>[k,g()]));
+  const bSave=mk("button",{className:"p",textContent:"Enregistrer",onclick:()=>act([bSave,bSaveR],`/api/instances/${id}/config`,{values:collect()})});
+  const bSaveR=mk("button",{textContent:"Enregistrer et redémarrer",onclick:()=>confirm("Enregistrer puis redémarrer ?")&&act([bSave,bSaveR],`/api/instances/${id}/config`,{values:collect(),restart:true},refresh)});
+  v.append(mk("div",{className:"row",style:"margin-bottom:14px"},bSave,bSaveR));
+
+  // sauvegardes
+  const bk=mk("section",{className:"card"},mk("h2",{textContent:"Sauvegardes"}));
+  const bBack=mk("button",{textContent:"Sauvegarder maintenant",onclick:()=>act([bBack],`/api/instances/${id}/backup`,{},()=>serverView(id))});
+  const download=name=>{const a=mk("a",{href:`/api/instances/${id}/backups/${encodeURIComponent(name)}`,download:name});document.body.append(a);a.click();a.remove()};
+  const bExport=mk("button",{textContent:"Exporter la sauvegarde actuelle",onclick:()=>act([bExport],`/api/instances/${id}/backup`,{label:"export"},r=>{download(r.name);serverView(id)})});
+  bk.append(mk("div",{className:"hint",style:"margin-bottom:8px",textContent:"Une sauvegarde est faite automatiquement à chaque arrêt. Les 10 dernières sont gardées. Pour un export fiable, arrêtez d'abord le serveur."}),
+    mk("div",{className:"row"},bBack,bExport));
+  const fmts=s.import_formats.map(f=>`${f.label} : ${f.extensions.join(", ")}`).join(" · ");
+  const file=mk("input",{type:"file",style:"max-width:340px"});
+  const bImp=mk("button",{textContent:"Importer",disabled:s.running,onclick:async()=>{
+    const f=file.files[0];if(!f){toast("Choisissez d'abord un fichier",true);return}
+    if(!confirm(`Importer « ${f.name} » ? La sauvegarde actuelle sera d'abord archivée.`))return;
+    bImp.disabled=true;toast("Envoi en cours…");
+    try{const r=await(await fetch(`/api/instances/${id}/import`,{method:"POST",headers:{"X-LANa":"1","X-Filename":encodeURIComponent(f.name)},body:f})).json();
+      toast(r.message,!r.ok);if(r.ok)serverView(id)}catch(e){toast("Erreur réseau",true)}
+    bImp.disabled=s.running}});
+  bk.append(mk("div",{className:"hint",style:"margin:14px 0 6px",textContent:"Importer une sauvegarde (serveur arrêté) — "+fmts}),mk("div",{className:"row"},file,bImp));
+  s.backups.forEach(b=>{
+    const r=mk("button",{textContent:"Restaurer",onclick:()=>confirm("Restaurer "+b.name+" ? La sauvegarde actuelle sera d'abord archivée.")&&act([r],`/api/instances/${id}/restore`,{name:b.name},()=>serverView(id))});
+    const d=mk("button",{textContent:"Télécharger",onclick:()=>download(b.name)});
+    bk.append(mk("div",{className:"row",style:"padding:6px 0;border-top:1px solid var(--line);margin-top:6px"},mk("span",{textContent:b.name}),mk("span",{className:"hint",textContent:b.size_mb+" Mo"}),mk("span",{className:"grow"}),d,r));
+  });
+  v.append(bk);
+
+  const logc=mk("section",{className:"card"},mk("h2",{textContent:"Journal"})),log=mk("pre");logc.append(log);v.append(logc);
+  const del=mk("button",{className:"d",textContent:"Supprimer ce serveur",onclick:()=>prompt("Cela supprime le serveur ET ses sauvegardes. Tapez « supprimer » pour confirmer.")==="supprimer"&&act([del],`/api/instances/${id}/delete`,{},()=>location.hash="#/")});
+  v.append(del);
+
+  async function refresh(){
+    if(current!==id)return;
+    const x=await api("/api/instances/"+id);
+    dot.className="dot "+(x.running?"on":"off");st.textContent=x.running?"En marche":"Arrêté";
+    bStart.disabled=x.running;bStop.disabled=!x.running;
+    const atEnd=log.scrollTop+log.clientHeight>=log.scrollHeight-20;
+    log.textContent=await api(`/api/instances/${id}/log`);if(atEnd)log.scrollTop=log.scrollHeight;
+  }
+  refresh();
+  const loop=()=>{timer=setTimeout(async()=>{if(!document.hidden)await refresh();if(current===id)loop()},4000)};loop();
+}
+
+// ---------- routage ----------
+async function route(){
+  clearTimeout(timer);current=null;
+  const h=location.hash.replace(/^#\/?/,"").split("/");
+  try{
+    if(h[0]==="s")await serverView(h[1]);
+    else if(h[0]==="install")await installView(h[1],h[2]);
+    else await home();
+  }catch(e){toast("Erreur : "+e.message,true)}
+}
+addEventListener("hashchange",route);route();
+</script>
+</body>
+</html>

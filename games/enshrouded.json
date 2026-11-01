@@ -1,0 +1,700 @@
+{
+  "id": "enshrouded",
+  "name": "Enshrouded",
+  "install": {
+    "type": "steamcmd",
+    "appid": 2278520,
+    "platform": "windows",
+    "check_file": "enshrouded_server.exe"
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "enshrouded_server.exe"
+    ],
+    "cwd": ".",
+    "startup_seconds": 45
+  },
+  "requirements": {
+    "ram_gb_min": 6,
+    "ram_gb_recommended": 12,
+    "disk_gb": 10,
+    "note": "Testé sur un Mac Intel de 8 Go : fonctionne pour 2 à 4 joueurs, avec des ralentissements possibles."
+  },
+  "ports": [
+    {
+      "from": "queryPort",
+      "offset": -1,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "queryPort",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Requêtes"
+    }
+  ],
+  "connect": "{lan_ip}:{queryPort}",
+  "savegame": "savegame",
+  "save_import": [
+    {
+      "label": "Monde Enshrouded (.ksd)",
+      "extensions": [".ksd"],
+      "magic": "SV2C",
+      "target": "world0.ksd"
+    }
+  ],
+  "log_file": null,
+  "config": {
+    "file": "enshrouded_server.json",
+    "format": "json",
+    "initial": {
+      "name": "Serveur Enshrouded",
+      "saveDirectory": "./savegame",
+      "logDirectory": "./logs",
+      "ip": "0.0.0.0",
+      "queryPort": 15637,
+      "slotCount": 4,
+      "tags": [],
+      "voiceChatMode": "Proximity",
+      "enableVoiceChat": false,
+      "enableTextChat": false,
+      "gameSettingsPreset": "Default",
+      "gameSettings": {
+        "playerHealthFactor": 1,
+        "playerManaFactor": 1,
+        "playerStaminaFactor": 1,
+        "playerBodyHeatFactor": 1,
+        "playerDivingTimeFactor": 1,
+        "shroudTimeFactor": 1,
+        "tombstoneMode": "AddBackpackMaterials",
+        "enableDurability": true,
+        "enableStarvingDebuff": false,
+        "foodBuffDurationFactor": 1,
+        "fromHungerToStarving": 600000000000,
+        "enableGliderTurbulences": true,
+        "weatherFrequency": "Normal",
+        "fishingDifficulty": "Normal",
+        "dayTimeDuration": 1800000000000,
+        "nightTimeDuration": 720000000000,
+        "curseModifier": "Normal",
+        "tamingStartleRepercussion": "LoseSomeProgress",
+        "flameLevelFogRemoval": 11,
+        "miningDamageFactor": 1,
+        "plantGrowthSpeedFactor": 1,
+        "resourceDropStackAmountFactor": 1,
+        "factoryProductionSpeedFactor": 1,
+        "perkUpgradeRecyclingFactor": 0.5,
+        "perkCostFactor": 1,
+        "experienceCombatFactor": 1,
+        "experienceMiningFactor": 1,
+        "experienceExplorationQuestsFactor": 1,
+        "randomSpawnerAmount": "Normal",
+        "aggroPoolAmount": "Normal",
+        "enemyDamageFactor": 1,
+        "enemyHealthFactor": 1,
+        "enemyStaminaFactor": 1,
+        "enemyPerceptionRangeFactor": 1,
+        "threatBonus": 1,
+        "pacifyAllEnemies": false,
+        "bossDamageFactor": 1,
+        "bossHealthFactor": 1
+      },
+      "userGroups": [
+        {
+          "name": "Admin",
+          "password": "{random}",
+          "canKickBan": true,
+          "canAccessInventories": true,
+          "canEditWorld": true,
+          "canEditBase": true,
+          "canExtendBase": true,
+          "reservedSlots": 0
+        },
+        {
+          "name": "Friend",
+          "password": "{random}",
+          "canKickBan": false,
+          "canAccessInventories": true,
+          "canEditWorld": true,
+          "canEditBase": true,
+          "canExtendBase": false,
+          "reservedSlots": 0
+        },
+        {
+          "name": "Guest",
+          "password": "{random}",
+          "canKickBan": false,
+          "canAccessInventories": false,
+          "canEditWorld": true,
+          "canEditBase": false,
+          "canExtendBase": false,
+          "reservedSlots": 0
+        },
+        {
+          "name": "Visitor",
+          "password": "{random}",
+          "canKickBan": false,
+          "canAccessInventories": false,
+          "canEditWorld": false,
+          "canEditBase": false,
+          "canExtendBase": false,
+          "reservedSlots": 0
+        }
+      ],
+      "bannedAccounts": []
+    }
+  },
+  "fields": [
+    {
+      "key": "name",
+      "label": "Nom du serveur",
+      "type": "text",
+      "group": "Serveur",
+      "default": "Serveur Enshrouded",
+      "maxlen": 60
+    },
+    {
+      "key": "slotCount",
+      "label": "Places (1 à 16)",
+      "type": "int",
+      "min": 1,
+      "max": 16,
+      "default": 4,
+      "group": "Serveur"
+    },
+    {
+      "key": "queryPort",
+      "label": "Port",
+      "type": "int",
+      "min": 1024,
+      "max": 65535,
+      "default": 15637,
+      "group": "Serveur",
+      "hint": "Ports UDP à ouvrir : ce port et le précédent"
+    },
+    {
+      "key": "gameSettingsPreset",
+      "label": "Préréglage de difficulté",
+      "type": "enum",
+      "options": [
+        "Default",
+        "Relaxed",
+        "Hard",
+        "Survival",
+        "Custom"
+      ],
+      "default": "Default",
+      "group": "Serveur",
+      "hint": "Les paramètres de jeu ne s'appliquent qu'avec « Custom »"
+    },
+    {
+      "key": "voiceChatMode",
+      "label": "Mode vocal",
+      "type": "enum",
+      "options": [
+        "Proximity",
+        "Global"
+      ],
+      "default": "Proximity",
+      "group": "Serveur"
+    },
+    {
+      "key": "enableVoiceChat",
+      "label": "Chat vocal",
+      "type": "bool",
+      "default": false,
+      "group": "Serveur"
+    },
+    {
+      "key": "enableTextChat",
+      "label": "Chat écrit",
+      "type": "bool",
+      "default": false,
+      "group": "Serveur"
+    },
+    {
+      "key": "tags",
+      "label": "Étiquettes de recherche",
+      "type": "tags",
+      "options": [
+        "LookingForPlayers",
+        "English",
+        "German",
+        "French",
+        "Italian",
+        "Japanese",
+        "Korean",
+        "Polish",
+        "Portuguese",
+        "Russian",
+        "Spanish",
+        "Thai",
+        "Turkish",
+        "Ukrainian",
+        "Chinese",
+        "Taiwanese",
+        "BaseBuilding",
+        "Exploration",
+        "Roleplay"
+      ],
+      "default": [],
+      "group": "Serveur"
+    },
+    {
+      "key": "gameSettings.playerHealthFactor",
+      "label": "Vie max des joueurs (×)",
+      "group": "Jeu — Joueurs",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 4,
+      "hint": "Entre 0.25 et 4 · défaut 1"
+    },
+    {
+      "key": "gameSettings.playerManaFactor",
+      "label": "Mana max (×)",
+      "group": "Jeu — Joueurs",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 4,
+      "hint": "Entre 0.25 et 4 · défaut 1"
+    },
+    {
+      "key": "gameSettings.playerStaminaFactor",
+      "label": "Endurance max (×)",
+      "group": "Jeu — Joueurs",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 4,
+      "hint": "Entre 0.25 et 4 · défaut 1"
+    },
+    {
+      "key": "gameSettings.playerBodyHeatFactor",
+      "label": "Résistance au froid (×)",
+      "group": "Jeu — Joueurs",
+      "default": 1,
+      "type": "float",
+      "min": 0.5,
+      "max": 2,
+      "hint": "Entre 0.5 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.playerDivingTimeFactor",
+      "label": "Temps sous l'eau (×)",
+      "group": "Jeu — Joueurs",
+      "default": 1,
+      "type": "float",
+      "min": 0.5,
+      "max": 2,
+      "hint": "Entre 0.5 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.shroudTimeFactor",
+      "label": "Durée dans la Brume (×)",
+      "group": "Jeu — Joueurs",
+      "default": 1,
+      "type": "float",
+      "min": 0.5,
+      "max": 2,
+      "hint": "Entre 0.5 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.tombstoneMode",
+      "label": "Mort : objets perdus",
+      "group": "Jeu — Joueurs",
+      "default": "AddBackpackMaterials",
+      "type": "enum",
+      "options": [
+        "AddBackpackMaterials",
+        "Everything",
+        "NoTombstone"
+      ]
+    },
+    {
+      "key": "gameSettings.enableDurability",
+      "label": "Durabilité des armes",
+      "group": "Jeu — Survie",
+      "default": true,
+      "type": "bool"
+    },
+    {
+      "key": "gameSettings.enableStarvingDebuff",
+      "label": "Faim et famine",
+      "group": "Jeu — Survie",
+      "default": false,
+      "type": "bool"
+    },
+    {
+      "key": "gameSettings.foodBuffDurationFactor",
+      "label": "Durée des bonus de nourriture (×)",
+      "group": "Jeu — Survie",
+      "default": 1,
+      "type": "float",
+      "min": 0.5,
+      "max": 2,
+      "hint": "Entre 0.5 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.fromHungerToStarving",
+      "label": "Durée de l'état affamé (min)",
+      "group": "Jeu — Survie",
+      "default": 10,
+      "type": "minutes_ns",
+      "min": 5,
+      "max": 20,
+      "hint": "Entre 5 et 20 · défaut 10"
+    },
+    {
+      "key": "gameSettings.enableGliderTurbulences",
+      "label": "Turbulences en planeur",
+      "group": "Jeu — Monde",
+      "default": true,
+      "type": "bool"
+    },
+    {
+      "key": "gameSettings.weatherFrequency",
+      "label": "Fréquence de la météo",
+      "group": "Jeu — Monde",
+      "default": "Normal",
+      "type": "enum",
+      "options": [
+        "Disabled",
+        "Rare",
+        "Normal",
+        "Often"
+      ]
+    },
+    {
+      "key": "gameSettings.fishingDifficulty",
+      "label": "Difficulté de la pêche",
+      "group": "Jeu — Monde",
+      "default": "Normal",
+      "type": "enum",
+      "options": [
+        "VeryEasy",
+        "Easy",
+        "Normal",
+        "Hard",
+        "VeryHard"
+      ]
+    },
+    {
+      "key": "gameSettings.dayTimeDuration",
+      "label": "Durée du jour (min)",
+      "group": "Jeu — Monde",
+      "default": 30,
+      "type": "minutes_ns",
+      "min": 2,
+      "max": 60,
+      "hint": "Entre 2 et 60 · défaut 30"
+    },
+    {
+      "key": "gameSettings.nightTimeDuration",
+      "label": "Durée de la nuit (min)",
+      "group": "Jeu — Monde",
+      "default": 12,
+      "type": "minutes_ns",
+      "min": 2,
+      "max": 60,
+      "hint": "Entre 2 et 60 · défaut 12"
+    },
+    {
+      "key": "gameSettings.curseModifier",
+      "label": "Malédiction de la Brume",
+      "group": "Jeu — Monde",
+      "default": "Normal",
+      "type": "enum",
+      "options": [
+        "Easy",
+        "Normal",
+        "Hard"
+      ]
+    },
+    {
+      "key": "gameSettings.tamingStartleRepercussion",
+      "label": "Échec d'apprivoisement",
+      "group": "Jeu — Monde",
+      "default": "LoseSomeProgress",
+      "type": "enum",
+      "options": [
+        "KeepProgress",
+        "LoseSomeProgress",
+        "LoseAllProgress"
+      ]
+    },
+    {
+      "key": "gameSettings.flameLevelFogRemoval",
+      "label": "Niveau de flamme requis pour autels en Brume",
+      "group": "Jeu — Monde",
+      "default": 11,
+      "type": "int",
+      "min": 0,
+      "max": 20,
+      "hint": "Entre 0 et 20 · défaut 11"
+    },
+    {
+      "key": "gameSettings.miningDamageFactor",
+      "label": "Efficacité du minage (×)",
+      "group": "Jeu — Ressources",
+      "default": 1,
+      "type": "float",
+      "min": 0.5,
+      "max": 2,
+      "hint": "Entre 0.5 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.plantGrowthSpeedFactor",
+      "label": "Pousse des plantes (×)",
+      "group": "Jeu — Ressources",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 2,
+      "hint": "Entre 0.25 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.resourceDropStackAmountFactor",
+      "label": "Quantité de ressources par butin (×)",
+      "group": "Jeu — Ressources",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 2,
+      "hint": "Entre 0.25 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.factoryProductionSpeedFactor",
+      "label": "Durée de production des ateliers (×)",
+      "group": "Jeu — Ressources",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 2,
+      "hint": "Entre 0.25 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.perkUpgradeRecyclingFactor",
+      "label": "Runes rendues au recyclage (×)",
+      "group": "Jeu — Ressources",
+      "default": 0.5,
+      "type": "float",
+      "min": 0,
+      "max": 1,
+      "hint": "Entre 0 et 1 · défaut 0.5"
+    },
+    {
+      "key": "gameSettings.perkCostFactor",
+      "label": "Coût d'amélioration des armes (×)",
+      "group": "Jeu — Ressources",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 2,
+      "hint": "Entre 0.25 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.experienceCombatFactor",
+      "label": "XP de combat (×)",
+      "group": "Jeu — Expérience",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 2,
+      "hint": "Entre 0.25 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.experienceMiningFactor",
+      "label": "XP de minage (×)",
+      "group": "Jeu — Expérience",
+      "default": 1,
+      "type": "float",
+      "min": 0,
+      "max": 2,
+      "hint": "Entre 0 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.experienceExplorationQuestsFactor",
+      "label": "XP d'exploration et quêtes (×)",
+      "group": "Jeu — Expérience",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 2,
+      "hint": "Entre 0.25 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.randomSpawnerAmount",
+      "label": "Quantité d'ennemis",
+      "group": "Jeu — Ennemis",
+      "default": "Normal",
+      "type": "enum",
+      "options": [
+        "Few",
+        "Normal",
+        "Automatic",
+        "Many",
+        "Extreme"
+      ]
+    },
+    {
+      "key": "gameSettings.aggroPoolAmount",
+      "label": "Ennemis attaquant simultanément",
+      "group": "Jeu — Ennemis",
+      "default": "Normal",
+      "type": "enum",
+      "options": [
+        "Few",
+        "Normal",
+        "Many",
+        "Extreme"
+      ]
+    },
+    {
+      "key": "gameSettings.enemyDamageFactor",
+      "label": "Dégâts des ennemis (×)",
+      "group": "Jeu — Ennemis",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 5,
+      "hint": "Entre 0.25 et 5 · défaut 1"
+    },
+    {
+      "key": "gameSettings.enemyHealthFactor",
+      "label": "Vie des ennemis (×)",
+      "group": "Jeu — Ennemis",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 4,
+      "hint": "Entre 0.25 et 4 · défaut 1"
+    },
+    {
+      "key": "gameSettings.enemyStaminaFactor",
+      "label": "Endurance des ennemis (×)",
+      "group": "Jeu — Ennemis",
+      "default": 1,
+      "type": "float",
+      "min": 0.5,
+      "max": 2,
+      "hint": "Entre 0.5 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.enemyPerceptionRangeFactor",
+      "label": "Perception des ennemis (×)",
+      "group": "Jeu — Ennemis",
+      "default": 1,
+      "type": "float",
+      "min": 0.5,
+      "max": 2,
+      "hint": "Entre 0.5 et 2 · défaut 1"
+    },
+    {
+      "key": "gameSettings.threatBonus",
+      "label": "Fréquence des attaques (×)",
+      "group": "Jeu — Ennemis",
+      "default": 1,
+      "type": "float",
+      "min": 0.25,
+      "max": 4,
+      "hint": "Entre 0.25 et 4 · défaut 1"
+    },
+    {
+      "key": "gameSettings.pacifyAllEnemies",
+      "label": "Ennemis pacifiés (hors boss)",
+      "group": "Jeu — Ennemis",
+      "default": false,
+      "type": "bool"
+    },
+    {
+      "key": "gameSettings.bossDamageFactor",
+      "label": "Dégâts des boss (×)",
+      "group": "Jeu — Boss",
+      "default": 1,
+      "type": "float",
+      "min": 0.2,
+      "max": 5,
+      "hint": "Entre 0.2 et 5 · défaut 1"
+    },
+    {
+      "key": "gameSettings.bossHealthFactor",
+      "label": "Vie des boss (×)",
+      "group": "Jeu — Boss",
+      "default": 1,
+      "type": "float",
+      "min": 0.2,
+      "max": 5,
+      "hint": "Entre 0.2 et 5 · défaut 1"
+    },
+    {
+      "key": "userGroups",
+      "label": "Groupes et mots de passe",
+      "type": "collection",
+      "group": "Groupes",
+      "min_items": 1,
+      "unique": [
+        "name",
+        "password"
+      ],
+      "item": [
+        {
+          "key": "name",
+          "label": "Nom du groupe",
+          "type": "text",
+          "default": "Nouveau",
+          "maxlen": 40
+        },
+        {
+          "key": "password",
+          "label": "Mot de passe",
+          "type": "text",
+          "default": "",
+          "maxlen": 80
+        },
+        {
+          "key": "reservedSlots",
+          "label": "Places réservées",
+          "type": "int",
+          "min": 0,
+          "max": 16,
+          "default": 0
+        },
+        {
+          "key": "canKickBan",
+          "label": "Expulser / bannir",
+          "type": "bool",
+          "default": false
+        },
+        {
+          "key": "canAccessInventories",
+          "label": "Coffres et conteneurs",
+          "type": "bool",
+          "default": false
+        },
+        {
+          "key": "canEditWorld",
+          "label": "Modifier le monde",
+          "type": "bool",
+          "default": false
+        },
+        {
+          "key": "canEditBase",
+          "label": "Modifier la base",
+          "type": "bool",
+          "default": false
+        },
+        {
+          "key": "canExtendBase",
+          "label": "Autels de flamme",
+          "type": "bool",
+          "default": false
+        }
+      ],
+      "hint": "Chaque mot de passe ouvre un groupe de permissions."
+    }
+  ]
+}

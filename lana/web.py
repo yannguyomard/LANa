@@ -1,0 +1,259 @@
+"""Serveur web de LANa : API JSON + interface. Bibliothèque standard uniquement."""
+import base64
+import hmac
+import json
+import os
+import re
+import secrets
+import shutil
+import urllib.parse
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+from . import __version__, games, instances, jobs, machine, paths
+from .instances import Instance, InstanceError
+
+ROUTE_INSTANCE = re.compile(r"^/api/instances/([a-z0-9-]+)(?:/([a-z-]+))?$")
+ROUTE_JOB = re.compile(r"^/api/jobs/([0-9a-f]+)$")
+ROUTE_DOWNLOAD = re.compile(r"^/api/instances/([a-z0-9-]+)/backups/([A-Za-z0-9._-]+)$")
+MAX_UPLOAD_BYTES = 1024 * 2**20   # 1 Go : une sauvegarde de jeu est bien plus petite
+
+
+def load_auth():
+    """Identifiants du panneau ; créés au premier lancement. Retourne (auth, créé_maintenant)."""
+    if os.path.exists(paths.AUTH_FILE):
+        with open(paths.AUTH_FILE) as fh:
+            return json.load(fh), False
+    auth = {"user": "admin", "password": secrets.token_urlsafe(12)}
+    os.makedirs(paths.HOME, exist_ok=True)
+    fd = os.open(paths.AUTH_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as fh:
+        json.dump(auth, fh)
+    return auth, True
+
+
+def games_payload():
+    mach = machine.detect()
+    out = []
+    for game in games.load_all().values():
+        out.append({"id": game["id"], "name": game["name"], "requirements": game["requirements"],
+                    "verdict": machine.verdict(game["requirements"], games.needs(game), mach)})
+    return out
+
+
+def instance_payload(inst):
+    game = inst.game
+    out = inst.status()
+    out["fields"] = game["fields"]
+    out["requirements"] = game["requirements"]
+    if out["installed"]:
+        values = inst.read_config()
+        out["values"] = values
+        ip = machine.lan_ip()
+        out["ports"] = [{"label": p["label"], "proto": p["proto"], "port": values[p["from"]] + p["offset"]}
+                        for p in game.get("ports", [])]
+        out["connect"] = game.get("connect", "").format(lan_ip=ip or "?", **{
+            k: v for k, v in values.items() if "." not in k})
+        out["backups"] = inst.backups()
+        out["import_formats"] = inst.import_formats()
+    return out
+
+
+class Handler(BaseHTTPRequestHandler):
+    server_version = "LANa/" + __version__
+    auth = None
+
+    def log_message(self, *args):
+        pass
+
+    # ---------- utilitaires ----------
+
+    def authed(self):
+        header = self.headers.get("Authorization", "")
+        if not header.startswith("Basic "):
+            return False
+        try:
+            user, _, pw = base64.b64decode(header[6:]).decode().partition(":")
+        except ValueError:
+            return False
+        return hmac.compare_digest(user, self.auth["user"]) & hmac.compare_digest(pw, self.auth["password"])
+
+    def reply(self, code, body, ctype="application/json"):
+        raw = body if isinstance(body, bytes) else body.encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", ctype + "; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def json(self, obj, code=200):
+        self.reply(code, json.dumps(obj, ensure_ascii=False))
+
+    def fail(self, message, code=400):
+        self.json({"ok": False, "message": message}, code)
+
+    def send_file(self, path):
+        """Envoie un fichier en téléchargement, par blocs (une archive peut peser plusieurs centaines de Mo)."""
+        self.send_response(200)
+        self.send_header("Content-Type", "application/gzip")
+        self.send_header("Content-Length", str(os.path.getsize(path)))
+        self.send_header("Content-Disposition", 'attachment; filename="%s"' % os.path.basename(path))
+        self.end_headers()
+        with open(path, "rb") as fh:
+            shutil.copyfileobj(fh, self.wfile, 1 << 20)
+
+    def receive_upload(self, dest):
+        """Écrit le corps de la requête dans dest, en refusant ce qui dépasse la limite."""
+        length = int(self.headers.get("Content-Length", 0))
+        if not 0 < length <= MAX_UPLOAD_BYTES:
+            raise InstanceError("Fichier vide ou trop volumineux (limite %d Mo)" % (MAX_UPLOAD_BYTES // 2**20))
+        remaining = length
+        with open(dest, "wb") as fh:
+            while remaining:
+                chunk = self.rfile.read(min(remaining, 1 << 20))
+                if not chunk:
+                    raise InstanceError("Envoi interrompu")
+                fh.write(chunk)
+                remaining -= len(chunk)
+
+    def instance(self, instance_id):
+        inst = Instance(instance_id)
+        inst.meta()  # lève InstanceError si absent
+        return inst
+
+    # ---------- GET ----------
+
+    def do_GET(self):
+        if not self.authed():
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="LANa"')
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        path = self.path.split("?")[0]
+        try:
+            if path == "/":
+                with open(os.path.join(paths.WEB_DIR, "index.html"), "rb") as fh:
+                    return self.reply(200, fh.read(), "text/html")
+            if path == "/api/machine":
+                return self.json(dict(machine.detect(), version=__version__))
+            if path == "/api/games":
+                return self.json(games_payload())
+            if path == "/api/instances":
+                return self.json([i.status() for i in instances.list_all()])
+            download = ROUTE_DOWNLOAD.match(path)
+            if download:
+                inst = self.instance(download.group(1))
+                return self.send_file(inst.backup_path(download.group(2)))
+            job = ROUTE_JOB.match(path)
+            if job:
+                found = jobs.get(job.group(1))
+                return self.json(found.snapshot()) if found else self.fail("Tâche introuvable", 404)
+            match = ROUTE_INSTANCE.match(path)
+            if match:
+                inst = self.instance(match.group(1))
+                if match.group(2) is None:
+                    return self.json(instance_payload(inst))
+                if match.group(2) == "log":
+                    return self.reply(200, inst.log_tail(), "text/plain")
+            self.fail("Introuvable", 404)
+        except InstanceError as ex:
+            self.fail(str(ex), 404)
+
+    # ---------- POST ----------
+
+    def do_POST(self):
+        if not self.authed():
+            return self.fail("Authentification requise", 401)
+        # Anti-CSRF : un formulaire d'un autre site ne peut pas poser cet en-tête.
+        if self.headers.get("X-LANa") != "1":
+            return self.fail("Requête refusée", 403)
+        path = self.path.split("?")[0]
+        upload = ROUTE_INSTANCE.match(path)
+        if upload and upload.group(2) == "import":
+            # Corps binaire (le fichier lui-même), pas du JSON.
+            return self.handle_import(upload.group(1))
+        try:
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        except ValueError:
+            return self.fail("JSON invalide")
+        try:
+            self.route_post(path, body)
+        except InstanceError as ex:
+            self.fail(str(ex))
+        except (ValueError, KeyError, TypeError) as ex:
+            self.fail("Non enregistré : %s" % ex)
+
+    def handle_import(self, instance_id):
+        try:
+            inst = self.instance(instance_id)
+            if inst.running():  # on refuse avant de recevoir le fichier
+                raise InstanceError("Arrêtez le serveur avant d'importer une sauvegarde")
+            filename = urllib.parse.unquote(self.headers.get("X-Filename", ""))
+            tmp = os.path.join(inst.dir, "import.tmp")
+            try:
+                self.receive_upload(tmp)
+                message = inst.import_save(tmp, os.path.basename(filename))
+            finally:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            self.json({"ok": True, "message": message + ". L'ancienne sauvegarde est archivée."})
+        except InstanceError as ex:
+            self.fail(str(ex))
+
+    def route_post(self, path, body):
+        if path == "/api/instances":
+            game = games.get(body.get("game", ""))
+            inst = Instance.create(game["id"], body.get("name"))
+            try:
+                job = inst.install()
+            except InstanceError:
+                shutil.rmtree(inst.dir, ignore_errors=True)
+                raise
+            return self.json({"ok": True, "id": inst.id, "job": job.id})
+        match = ROUTE_INSTANCE.match(path)
+        if not match or not match.group(2):
+            return self.fail("Introuvable", 404)
+        inst, action = self.instance(match.group(1)), match.group(2)
+        if action == "install":
+            return self.json({"ok": True, "job": inst.install().id})
+        if action == "start":
+            inst.start()
+            return self.json({"ok": True, "message": "Démarrage lancé (environ %s secondes)" % inst.game["run"].get("startup_seconds", 30)})
+        if action == "stop":
+            inst.stop()
+            return self.json({"ok": True, "message": "Serveur arrêté, sauvegarde faite"})
+        if action == "restart":
+            if inst.running():
+                inst.stop()
+            inst.start()
+            return self.json({"ok": True, "message": "Redémarrage lancé"})
+        if action == "config":
+            inst.write_config(body["values"])
+            if body.get("restart") and inst.running():
+                inst.stop()
+                inst.start()
+                return self.json({"ok": True, "message": "Configuration enregistrée, serveur redémarré"})
+            note = " Redémarrez le serveur pour l'appliquer." if inst.running() else ""
+            return self.json({"ok": True, "message": "Configuration enregistrée." + note})
+        if action == "backup":
+            name = inst.backup(body.get("label", "manuelle"))
+            return self.json({"ok": True, "message": "Sauvegarde créée : %s" % name, "name": name})
+        if action == "restore":
+            inst.restore(body["name"])
+            return self.json({"ok": True, "message": "Sauvegarde restaurée"})
+        if action == "delete":
+            if inst.running():
+                raise InstanceError("Arrêtez le serveur avant de le supprimer")
+            shutil.rmtree(inst.dir)
+            return self.json({"ok": True, "message": "Serveur supprimé"})
+        self.fail("Action inconnue", 404)
+
+
+def serve(host, port):
+    Handler.auth, created = load_auth()
+    if created:
+        print("Identifiants créés — utilisateur : %s  mot de passe : %s" % (Handler.auth["user"], Handler.auth["password"]))
+        print("(ils sont aussi dans %s)" % paths.AUTH_FILE)
+    print("LANa %s sur http://%s:%d" % (__version__, "localhost" if host == "127.0.0.1" else host, port))
+    ThreadingHTTPServer((host, port), Handler).serve_forever()
