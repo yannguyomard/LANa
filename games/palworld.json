@@ -1,0 +1,484 @@
+{
+  "id": "palworld",
+  "name": "Palworld",
+  "install": {
+    "type": "steamcmd",
+    "appid": 2394010,
+    "platform": "windows",
+    "check_file": "PalServer.exe"
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "PalServer.exe",
+      "-port={port}",
+      "-useperfthreads",
+      "-NoAsyncLoadingThread",
+      "-UseMultithreadForDS"
+    ],
+    "cwd": ".",
+    "startup_seconds": 120
+  },
+  "requirements": {
+    "ram_gb_min": 8,
+    "ram_gb_recommended": 16,
+    "disk_gb": 12,
+    "note": "Serveur très gourmand : 8 Go est le minimum de Pocketpair, avec risque de plantage par manque de mémoire."
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "Pal/Saved/SaveGames",
+  "config": {
+    "file": "Pal/Saved/Config/WindowsServer/PalWorldSettings.ini",
+    "format": "ue_options",
+    "section": "/Script/Pal.PalGameWorldSettings",
+    "seed_from": "DefaultPalWorldSettings.ini",
+    "initial": {
+      "ServerName": "Serveur Palworld",
+      "ServerPlayerMaxNum": 4,
+      "AdminPassword": "{random}"
+    }
+  },
+  "fields": [
+    {
+      "key": "ServerName",
+      "label": "Nom du serveur",
+      "type": "text",
+      "group": "Serveur",
+      "default": "Default Palworld Server",
+      "maxlen": 60
+    },
+    {
+      "key": "ServerDescription",
+      "label": "Description",
+      "type": "text",
+      "group": "Serveur",
+      "default": "",
+      "maxlen": 200,
+      "required": false
+    },
+    {
+      "key": "ServerPassword",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "group": "Serveur",
+      "default": "",
+      "maxlen": 60,
+      "required": false
+    },
+    {
+      "key": "AdminPassword",
+      "label": "Mot de passe administrateur",
+      "type": "text",
+      "group": "Serveur",
+      "default": "",
+      "maxlen": 60,
+      "required": false,
+      "hint": "Donne accès aux commandes d'admin en jeu (/AdminPassword …)"
+    },
+    {
+      "key": "ServerPlayerMaxNum",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "group": "Serveur",
+      "default": 32,
+      "min": 1,
+      "max": 32
+    },
+    {
+      "key": "lana:port",
+      "label": "Port de jeu (UDP)",
+      "type": "int",
+      "group": "Serveur",
+      "default": 8211,
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port UDP à ouvrir sur la box"
+    },
+    {
+      "key": "bShowPlayerList",
+      "label": "Liste des joueurs visible",
+      "type": "bool",
+      "group": "Serveur",
+      "default": false
+    },
+    {
+      "key": "bEnableVoiceChat",
+      "label": "Chat vocal",
+      "type": "bool",
+      "group": "Serveur",
+      "default": false
+    },
+    {
+      "key": "RCONEnabled",
+      "label": "RCON (administration à distance)",
+      "type": "bool",
+      "group": "Administration",
+      "default": false
+    },
+    {
+      "key": "RCONPort",
+      "label": "Port RCON",
+      "type": "int",
+      "group": "Administration",
+      "default": 25575,
+      "min": 1024,
+      "max": 65535
+    },
+    {
+      "key": "RESTAPIEnabled",
+      "label": "API REST",
+      "type": "bool",
+      "group": "Administration",
+      "default": false
+    },
+    {
+      "key": "RESTAPIPort",
+      "label": "Port de l'API REST",
+      "type": "int",
+      "group": "Administration",
+      "default": 8212,
+      "min": 1024,
+      "max": 65535
+    },
+    {
+      "key": "DeathPenalty",
+      "label": "Pénalité de mort",
+      "type": "enum",
+      "group": "Règles",
+      "default": "Item",
+      "options": [
+        "None",
+        "Item",
+        "ItemAndEquipment",
+        "All"
+      ],
+      "labels": {
+        "None": "Rien",
+        "Item": "Objets (sans l'équipement)",
+        "ItemAndEquipment": "Objets et équipement",
+        "All": "Tout, Pals compris"
+      }
+    },
+    {
+      "key": "bIsPvP",
+      "label": "Mode PvP",
+      "type": "bool",
+      "group": "Règles",
+      "default": false
+    },
+    {
+      "key": "bEnablePlayerToPlayerDamage",
+      "label": "Dégâts entre joueurs",
+      "type": "bool",
+      "group": "Règles",
+      "default": false
+    },
+    {
+      "key": "bEnableFriendlyFire",
+      "label": "Tirs alliés",
+      "type": "bool",
+      "group": "Règles",
+      "default": false
+    },
+    {
+      "key": "bHardcore",
+      "label": "Hardcore (pas de réapparition)",
+      "type": "bool",
+      "group": "Règles",
+      "default": false
+    },
+    {
+      "key": "bPalLost",
+      "label": "Perte des Pals à la mort",
+      "type": "bool",
+      "group": "Règles",
+      "default": false
+    },
+    {
+      "key": "bEnableInvaderEnemy",
+      "label": "Raids ennemis sur les bases",
+      "type": "bool",
+      "group": "Règles",
+      "default": true
+    },
+    {
+      "key": "bEnableFastTravel",
+      "label": "Voyage rapide",
+      "type": "bool",
+      "group": "Règles",
+      "default": true
+    },
+    {
+      "key": "bIsStartLocationSelectByMap",
+      "label": "Choisir son point de départ sur la carte",
+      "type": "bool",
+      "group": "Règles",
+      "default": false
+    },
+    {
+      "key": "bExistPlayerAfterLogout",
+      "label": "Le personnage reste dans le monde à la déconnexion",
+      "type": "bool",
+      "group": "Règles",
+      "default": false
+    },
+    {
+      "key": "bBuildAreaLimit",
+      "label": "Pas de construction près des points de voyage rapide",
+      "type": "bool",
+      "group": "Règles",
+      "default": false
+    },
+    {
+      "key": "DayTimeSpeedRate",
+      "label": "Vitesse du jour (×)",
+      "type": "float",
+      "group": "Monde",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "NightTimeSpeedRate",
+      "label": "Vitesse de la nuit (×)",
+      "type": "float",
+      "group": "Monde",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "ExpRate",
+      "label": "XP (×)",
+      "type": "float",
+      "group": "Progression",
+      "default": 1,
+      "min": 0.1,
+      "max": 20,
+      "hint": "Bornes LANa : 0.1 à 20 · défaut 1"
+    },
+    {
+      "key": "PalCaptureRate",
+      "label": "Capture de Pals (×)",
+      "type": "float",
+      "group": "Progression",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "PalSpawnNumRate",
+      "label": "Quantité de Pals (×)",
+      "type": "float",
+      "group": "Performances",
+      "default": 1,
+      "min": 0.1,
+      "max": 3,
+      "hint": "Plus bas = plus léger pour la machine"
+    },
+    {
+      "key": "CollectionDropRate",
+      "label": "Ressources récoltées (×)",
+      "type": "float",
+      "group": "Progression",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "EnemyDropItemRate",
+      "label": "Butin des ennemis (×)",
+      "type": "float",
+      "group": "Progression",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "WorkSpeedRate",
+      "label": "Vitesse de travail (×)",
+      "type": "float",
+      "group": "Progression",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "ItemWeightRate",
+      "label": "Poids des objets (×)",
+      "type": "float",
+      "group": "Progression",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "PalEggDefaultHatchingTime",
+      "label": "Éclosion d'un œuf géant (heures)",
+      "type": "float",
+      "group": "Progression",
+      "default": 1,
+      "min": 0,
+      "max": 240,
+      "hint": "Bornes LANa : 0 à 240 · défaut 1"
+    },
+    {
+      "key": "PlayerDamageRateAttack",
+      "label": "Dégâts infligés par les joueurs (×)",
+      "type": "float",
+      "group": "Combat",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "PlayerDamageRateDefense",
+      "label": "Dégâts subis par les joueurs (×)",
+      "type": "float",
+      "group": "Combat",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "PalDamageRateAttack",
+      "label": "Dégâts infligés par les Pals (×)",
+      "type": "float",
+      "group": "Combat",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "PalDamageRateDefense",
+      "label": "Dégâts subis par les Pals (×)",
+      "type": "float",
+      "group": "Combat",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "PlayerStomachDecreaceRate",
+      "label": "Faim des joueurs (×)",
+      "type": "float",
+      "group": "Survie",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "PlayerStaminaDecreaceRate",
+      "label": "Consommation d'endurance (×)",
+      "type": "float",
+      "group": "Survie",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "PlayerAutoHPRegeneRate",
+      "label": "Régénération de vie (×)",
+      "type": "float",
+      "group": "Survie",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "PalStomachDecreaceRate",
+      "label": "Faim des Pals (×)",
+      "type": "float",
+      "group": "Survie",
+      "default": 1,
+      "min": 0.1,
+      "max": 5,
+      "hint": "Bornes LANa : 0.1 à 5 · défaut 1"
+    },
+    {
+      "key": "BaseCampMaxNumInGuild",
+      "label": "Bases par guilde",
+      "type": "int",
+      "group": "Bases",
+      "default": 4,
+      "min": 1,
+      "max": 10
+    },
+    {
+      "key": "BaseCampWorkerMaxNum",
+      "label": "Pals par base",
+      "type": "int",
+      "group": "Bases",
+      "default": 15,
+      "min": 1,
+      "max": 50
+    },
+    {
+      "key": "GuildPlayerMaxNum",
+      "label": "Joueurs par guilde",
+      "type": "int",
+      "group": "Bases",
+      "default": 20,
+      "min": 1,
+      "max": 100
+    },
+    {
+      "key": "MaxBuildingLimitNumPerPlayer",
+      "label": "Limite de constructions par joueur (0 = illimité)",
+      "type": "int",
+      "group": "Bases",
+      "default": 0,
+      "min": 0,
+      "max": 100000
+    },
+    {
+      "key": "AutoSaveSpan",
+      "label": "Intervalle de sauvegarde (secondes)",
+      "type": "float",
+      "group": "Sauvegardes",
+      "default": 30,
+      "min": 10,
+      "max": 3600
+    },
+    {
+      "key": "bIsUseBackupSaveData",
+      "label": "Sauvegardes de secours du jeu",
+      "type": "bool",
+      "group": "Sauvegardes",
+      "default": true,
+      "hint": "Ajoute de la charge disque"
+    },
+    {
+      "key": "ServerReplicatePawnCullDistance",
+      "label": "Distance de synchronisation des Pals (cm)",
+      "type": "float",
+      "group": "Performances",
+      "default": 15000,
+      "min": 5000,
+      "max": 15000,
+      "hint": "Plus bas = plus léger"
+    }
+  ]
+}

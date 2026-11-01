@@ -94,11 +94,12 @@ def detect():
     }
 
 
-def verdict(requirements, needs, machine):
+def verdict(requirements, needs, machine, compat=None):
     """Compare les besoins d'un jeu à la machine.
 
     Retourne {"level": "ok"|"warn"|"bad", "messages": [...], "missing": [outils]}.
     "bad" = le serveur ne tiendra probablement pas ; "warn" = il tournera, mais juste.
+    `compat` ({"level", "note"}) déclare une incompatibilité constatée du jeu avec cette configuration.
     """
     level, messages = "ok", []
 
@@ -107,6 +108,9 @@ def verdict(requirements, needs, machine):
         if ("ok", "warn", "bad").index(new) > ("ok", "warn", "bad").index(level):
             level = new
 
+    if compat:  # incompatibilité connue de ce jeu avec la configuration visée (constatée en test)
+        raise_to(compat["level"])
+        messages.append(compat["note"])
     ram = machine.get("ram_gb")
     if ram is not None:
         if ram < requirements.get("ram_gb_min", 0):

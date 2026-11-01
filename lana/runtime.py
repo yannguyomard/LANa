@@ -194,6 +194,7 @@ def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0)
         if not java:
             raise RuntimeError("Java %d ou plus récent est requis." % java_min)
         cmd = [java] + cmd
+    env.update(run.get("env", {}))
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     log = open(log_path, "ab")
     log.write(("\n===== Démarrage %s =====\n" % time.strftime("%Y-%m-%d %H:%M:%S")).encode())
@@ -222,10 +223,10 @@ def group_alive(pgid):
         return True
 
 
-def stop_group(pgid, runtime, prefix, wait=30):
-    """Arrêt propre (SIGTERM) puis forcé ; sous Wine, on termine aussi wineserver."""
+def stop_group(pgid, runtime, prefix, wait=30, sig=signal.SIGTERM):
+    """Arrêt propre (`sig`, SIGTERM par défaut) puis forcé ; sous Wine, on termine aussi wineserver."""
     try:
-        os.killpg(pgid, signal.SIGTERM)
+        os.killpg(pgid, sig)
     except ProcessLookupError:
         pass
     for _ in range(wait):

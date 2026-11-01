@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import tarfile
 import threading
 import time
@@ -114,7 +115,7 @@ class Instance:
         eula = game.get("eula")
         if eula and not accept_eula:
             raise InstanceError("Vous devez accepter le contrat de licence : %s" % eula["url"])
-        verdict = machine.verdict(game["requirements"], [], machine.detect())
+        verdict = machine.verdict(game["requirements"], [], machine.detect(), game.get("compat"))
         if verdict["level"] == "bad":
             raise InstanceError(" ".join(verdict["messages"]))
         # Java est téléchargé automatiquement si absent ; les autres outils doivent déjà être là.
@@ -135,8 +136,11 @@ class Instance:
             else:
                 raise RuntimeError("Type d'installation non géré : %s" % spec["type"])
             if not os.path.exists(os.path.join(self.server_dir, game["config"]["file"])):
-                config.write_file(game, self.server_dir, config.initial_config(game))
+                config.write_initial(game, self.server_dir)
                 job.log("Configuration initiale créée.")
+            for name, content in spec.get("write_files", {}).items():   # fichiers que le jeu attend à côté de l'exécutable
+                with open(os.path.join(self.server_dir, name), "w", encoding="utf-8") as fh:
+                    fh.write(content)
             if eula:
                 with open(os.path.join(self.server_dir, eula["file"]), "w", encoding="utf-8") as fh:
                     fh.write(eula["content"])
@@ -175,7 +179,8 @@ class Instance:
                 raise InstanceError("Le serveur est déjà arrêté")
             if backup and os.path.isdir(os.path.join(self.server_dir, self.game["savegame"])):
                 self._backup_unlocked("avant-arret")
-            if not runtime.stop_group(self._pgid(), self.game["run"]["runtime"], self.prefix):
+            sig = getattr(signal, "SIG" + self.game["run"].get("stop_signal", "TERM"))
+            if not runtime.stop_group(self._pgid(), self.game["run"]["runtime"], self.prefix, sig=sig):
                 raise InstanceError("Le serveur ne s'est pas arrêté")
 
     # ---------- config ----------
@@ -207,9 +212,14 @@ class Instance:
     # ---------- journal ----------
 
     def log_tail(self, lines=120):
-        if not os.path.exists(self.log_path):
+        # Certains jeux écrivent leur journal dans un fichier plutôt que sur la sortie standard.
+        own = self.game.get("log_file")
+        path = os.path.join(self.server_dir, own) if own else None
+        if not (path and os.path.exists(path)):
+            path = self.log_path
+        if not os.path.exists(path):
             return ""
-        with open(self.log_path, "rb") as fh:
+        with open(path, "rb") as fh:
             fh.seek(0, os.SEEK_END)
             fh.seek(max(0, fh.tell() - 60000))
             text = fh.read().decode("utf-8", "replace")

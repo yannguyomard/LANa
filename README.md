@@ -28,7 +28,14 @@ LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d
 |---|---|
 | Enshrouded | disponible, installation et administration complètes |
 | Minecraft (Java) | disponible : dernière version stable de Mojang, mémoire de Java réglable, import de mondes `.zip` |
-| Sons of the Forest, V Rising, Palworld | à venir (Windows via Wine ; Palworld demande beaucoup de RAM) |
+| V Rising | disponible (Wine) : installation, démarrage, réglages lus par le jeu, testés sur Mac Intel de 8 Go (environ 1,9 Go de RAM) |
+| Palworld | disponible (Wine), **installation et configuration vérifiées, démarrage non testé** : 8 Go de RAM est son minimum et cette machine héberge déjà un autre serveur |
+| Sons of the Forest | **non fonctionnel sur Mac Intel avec Wine 11** : le serveur reste bloqué à l'initialisation graphique et n'écrit jamais sa configuration (3 essais). LANa refuse de l'installer et le dit. La définition est prête pour une configuration où il démarrerait |
+
+### Limite connue : sauvegarde à l'arrêt des serveurs Windows
+
+Sous Wine, ni SIGTERM ni SIGINT ne font sauvegarder V Rising à l'arrêt (mesuré : aucun fichier écrit ; SIGINT bloque même l'arrêt 30 s). LANa archive la sauvegarde **telle qu'elle est sur disque** avant chaque arrêt, mais la progression depuis la dernière sauvegarde automatique du jeu peut être perdue.
+Gardez donc un intervalle de sauvegarde automatique court (réglable dans chaque jeu). Une vraie commande de sauvegarde (RCON ou API REST selon le jeu) est la prochaine amélioration. Minecraft, lui, sauvegarde en quittant.
 
 ## Sauvegardes
 
@@ -44,14 +51,16 @@ Pour tous les jeux, depuis la page d'un serveur :
 
 Un jeu est un fichier `games/<id>.json`, sans code Python. Il décrit :
 
-- `install` : comment l'installer (`steamcmd` avec `appid`, `platform`, `check_file` ; ou `mojang` pour Minecraft) ;
+- `install` : comment l'installer (`steamcmd` avec `appid`, `platform`, `check_file` ; ou `mojang` pour Minecraft) ; `write_files` = fichiers à créer à côté de l'exécutable ;
 - `eula` : contrat de licence à faire accepter explicitement par l'utilisateur (`url`, `label`, fichier à écrire). LANa n'accepte jamais un contrat à sa place ;
-- `run` : le runtime (`wine`, `java` ou `native`), la commande et le dossier de lancement ;
+- `run` : le runtime (`wine`, `java` ou `native`), la commande, le dossier de lancement, `env` (variables d'environnement) et `stop_signal` (`TERM` par défaut) ;
 - `requirements` : RAM minimale et recommandée, disque, note affichée à l'utilisateur ;
 - `ports`, `connect`, `savegame` (dossier sauvegardé) ;
 - `save_import` : formats de fichier propres au jeu acceptés à l'import (`extensions`, `magic` = premiers octets attendus, `target` = nom du fichier dans le dossier de sauvegarde) ;
+- `compat` : incompatibilité constatée en test (`level` `warn` ou `bad`, `note`). Avec `bad`, l'installation est refusée et la raison affichée ;
+- `log_file` : journal du jeu s'il n'écrit pas sur la sortie standard ;
 - `world_zip` : accepte l'import de mondes `.zip` (`marker` = fichier qui prouve que c'est un monde, ex. `level.dat`) ;
-- `config` : fichier, format (`json` ou `properties`), et config `initial` (le jeton `"{random}"` devient un mot de passe aléatoire) ;
+- `config` : fichier, format (`json`, `properties` ou `ue_options` pour la ligne `OptionSettings=(…)` d'Unreal), `seed_from` (fichier par défaut du jeu à copier comme point de départ) et `initial` (valeurs imposées par LANa ; le jeton `"{random}"` devient un mot de passe aléatoire) ;
 - `fields` : les paramètres éditables. Types : `text`, `int`, `float`, `bool`, `enum`, `tags`,
   `minutes_ns` (minutes dans l'interface, nanosecondes dans le fichier) et `collection` (liste d'éléments).
   `key` est un chemin pointé dans le fichier de config (nom entier de la propriété pour `.properties`).

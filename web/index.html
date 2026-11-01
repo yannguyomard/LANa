@@ -139,7 +139,7 @@ function fieldInput(f,val){
   const t=f.type;
   if(t==="bool"){const i=mk("input",{type:"checkbox",checked:!!val});i.get=()=>i.checked;return{el:mk("label",{className:"chk"},i,f.label),get:i.get}}
   let i;
-  if(t==="enum"){i=mk("select");f.options.forEach(o=>i.append(mk("option",{value:o,textContent:o,selected:o===val})));i.get=()=>i.value}
+  if(t==="enum"){i=mk("select");f.options.forEach(o=>i.append(mk("option",{value:o,textContent:(f.labels&&f.labels[o])||o,selected:o===val})));i.get=()=>i.value}
   else if(t==="text"){i=mk("input",{value:val??"",maxLength:f.maxlen||200});i.get=()=>i.value}
   else{i=mk("input",{type:"number",step:"any",min:f.min,max:f.max,value:val});i.get=()=>i.value===""?null:+i.value}
   const l=mk("label",{},f.label,i);if(f.hint)l.append(mk("span",{className:"hint",textContent:f.hint}));

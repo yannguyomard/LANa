@@ -1,0 +1,223 @@
+{
+  "id": "sotf",
+  "name": "Sons of the Forest",
+  "install": {
+    "type": "steamcmd",
+    "appid": 2465200,
+    "platform": "windows",
+    "check_file": "SonsOfTheForestDS.exe",
+    "write_files": {
+      "steam_appid.txt": "1326470"
+    }
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "SonsOfTheForestDS.exe",
+      "-userdatapath",
+      ".\\userdata"
+    ],
+    "env": {
+      "SteamAppId": "1326470",
+      "SteamGameId": "1326470"
+    },
+    "cwd": ".",
+    "startup_seconds": 120
+  },
+  "requirements": {
+    "ram_gb_min": 6,
+    "ram_gb_recommended": 12,
+    "disk_gb": 6
+  },
+  "compat": {
+    "level": "bad",
+    "note": "Non fonctionnel sur Mac Intel avec Wine 11 : le serveur reste bloqué à l'initialisation graphique (testé 3 fois, y compris avec -batchmode -nographics et -force-vulkan) et n'écrit jamais sa configuration."
+  },
+  "ports": [
+    {
+      "from": "GamePort",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "QueryPort",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Requêtes"
+    },
+    {
+      "from": "BlobSyncPort",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Synchronisation du monde"
+    }
+  ],
+  "connect": "{lan_ip}:{GamePort}",
+  "savegame": "userdata/Saves",
+  "config": {
+    "file": "userdata/dedicatedserver.cfg",
+    "format": "json",
+    "initial": {
+      "IpAddress": "0.0.0.0",
+      "GamePort": 8766,
+      "QueryPort": 27016,
+      "BlobSyncPort": 9700,
+      "ServerName": "Serveur Sons of the Forest",
+      "MaxPlayers": 4,
+      "Password": "{random}",
+      "LanOnly": false,
+      "SaveSlot": 1,
+      "SaveMode": "Continue",
+      "GameMode": "Normal",
+      "SaveInterval": 600,
+      "IdleDayCycleSpeed": 0.0,
+      "IdleTargetFramerate": 5,
+      "ActiveTargetFramerate": 60,
+      "LogFilesEnabled": false,
+      "TimestampLogFilenames": true,
+      "TimestampLogEntries": true,
+      "SkipNetworkAccessibilityTest": false,
+      "GameSettings": {},
+      "CustomGameModeSettings": {}
+    }
+  },
+  "fields": [
+    {
+      "key": "ServerName",
+      "label": "Nom du serveur",
+      "type": "text",
+      "group": "Serveur",
+      "default": "Sons Of The Forest Server (dedicated)",
+      "maxlen": 60
+    },
+    {
+      "key": "MaxPlayers",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "group": "Serveur",
+      "default": 8,
+      "min": 1,
+      "max": 8
+    },
+    {
+      "key": "Password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "group": "Serveur",
+      "default": "",
+      "maxlen": 40,
+      "required": false
+    },
+    {
+      "key": "LanOnly",
+      "label": "Réseau local seulement",
+      "type": "bool",
+      "group": "Serveur",
+      "default": false
+    },
+    {
+      "key": "GamePort",
+      "label": "Port de jeu (UDP)",
+      "type": "int",
+      "group": "Serveur",
+      "default": 8766,
+      "min": 1024,
+      "max": 65535
+    },
+    {
+      "key": "QueryPort",
+      "label": "Port de requêtes (UDP)",
+      "type": "int",
+      "group": "Serveur",
+      "default": 27016,
+      "min": 1024,
+      "max": 65535
+    },
+    {
+      "key": "BlobSyncPort",
+      "label": "Port de synchronisation du monde (UDP)",
+      "type": "int",
+      "group": "Serveur",
+      "default": 9700,
+      "min": 1024,
+      "max": 65535
+    },
+    {
+      "key": "SkipNetworkAccessibilityTest",
+      "label": "Ignorer le test d'accessibilité réseau",
+      "type": "bool",
+      "group": "Serveur",
+      "default": false,
+      "hint": "À activer si la box n'a pas de « NAT loopback » : le serveur refuse sinon de démarrer"
+    },
+    {
+      "key": "GameMode",
+      "label": "Mode de jeu",
+      "type": "enum",
+      "group": "Jeu",
+      "default": "Normal",
+      "options": [
+        "Normal",
+        "Hard",
+        "HardSurvival",
+        "Peaceful",
+        "Custom"
+      ],
+      "hint": "Ne s'applique qu'à la création d'une sauvegarde"
+    },
+    {
+      "key": "SaveSlot",
+      "label": "Emplacement de sauvegarde",
+      "type": "int",
+      "group": "Jeu",
+      "default": 1,
+      "min": 1,
+      "max": 30
+    },
+    {
+      "key": "SaveMode",
+      "label": "À chaque démarrage",
+      "type": "enum",
+      "group": "Jeu",
+      "default": "Continue",
+      "options": [
+        "Continue",
+        "New"
+      ],
+      "labels": {
+        "Continue": "Reprendre la sauvegarde",
+        "New": "Écraser la sauvegarde (nouveau monde)"
+      },
+      "hint": "« New » efface la sauvegarde de l'emplacement à CHAQUE démarrage"
+    },
+    {
+      "key": "SaveInterval",
+      "label": "Intervalle de sauvegarde (secondes)",
+      "type": "int",
+      "group": "Sauvegardes",
+      "default": 600,
+      "min": 30,
+      "max": 7200
+    },
+    {
+      "key": "IdleTargetFramerate",
+      "label": "Images par seconde sans joueur",
+      "type": "int",
+      "group": "Performances",
+      "default": 5,
+      "min": 1,
+      "max": 60
+    },
+    {
+      "key": "ActiveTargetFramerate",
+      "label": "Images par seconde avec des joueurs",
+      "type": "int",
+      "group": "Performances",
+      "default": 60,
+      "min": 10,
+      "max": 120,
+      "hint": "Plus bas = plus léger pour la machine"
+    }
+  ]
+}

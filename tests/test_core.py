@@ -81,6 +81,74 @@ class GameDefinitionTests(unittest.TestCase):
             self.assertIn(port["from"], keys)
 
 
+GAMES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "games")
+FIELD_TYPES = ("text", "int", "float", "bool", "enum", "tags", "minutes_ns", "collection")
+
+
+def real_definitions():
+    for fname in sorted(os.listdir(GAMES_DIR)):
+        if fname.endswith(".json"):
+            with open(os.path.join(GAMES_DIR, fname), encoding="utf-8") as fh:
+                yield fname, json.load(fh)
+
+
+class AllGameDefinitionsTests(unittest.TestCase):
+    """Contrôles communs à tous les jeux : une erreur dans un fichier JSON se voit ici, pas chez l'utilisateur."""
+
+    def test_every_definition_is_internally_consistent(self):
+        names = [g["id"] for _, g in real_definitions()]
+        self.assertGreaterEqual(len(names), 5)
+        self.assertEqual(len(names), len(set(names)))
+        for fname, game in real_definitions():
+            with self.subTest(game=game["id"]):
+                self.assertEqual(fname, game["id"] + ".json")
+                keys = [f["key"] for f in game["fields"]]
+                self.assertEqual(len(keys), len(set(keys)), "clés en double")
+                defaults = {}
+                for f in game["fields"]:
+                    self.assertIn(f["type"], FIELD_TYPES, f["key"])
+                    for needed in ("label", "group") + (() if f["type"] == "collection" else ("default",)):
+                        self.assertIn(needed, f, f["key"])
+                    if f["type"] in ("int", "float", "minutes_ns"):
+                        self.assertLessEqual(f["min"], f["default"], f["key"])
+                        self.assertLessEqual(f["default"], f["max"], f["key"])
+                    if f["type"] == "enum":
+                        self.assertIn(f["default"], f["options"], f["key"])
+                        for value in f.get("labels", {}):
+                            self.assertIn(value, f["options"], f["key"])
+                    if f["key"].startswith("lana:"):
+                        defaults[f["key"][5:]] = f["default"]
+                for port in game["ports"]:
+                    self.assertIn(port["from"], keys)
+                # L'adresse de connexion et les arguments de lancement doivent se remplir avec les défauts.
+                names_ = {f["key"]: f.get("default") for f in game["fields"] if "." not in f["key"] and ":" not in f["key"]}
+                names_.update(defaults)
+                game["connect"].format(lan_ip="1.2.3.4", **names_)
+                for arg in game["run"]["command"]:
+                    arg.format(**defaults)
+                self.assertIn(game["run"]["runtime"], ("wine", "java", "native"))
+                self.assertIn(game["config"]["format"], ("json", "properties", "ue_options"))
+                if "compat" in game:
+                    self.assertIn(game["compat"]["level"], ("warn", "bad"))
+                    self.assertTrue(game["compat"]["note"])
+
+    def test_initial_config_is_accepted_by_validation(self):
+        for _, game in real_definitions():
+            if game["config"].get("seed_from"):
+                continue  # le fichier de départ est celui du jeu, absent des tests
+            with self.subTest(game=game["id"]):
+                initial = config.initial_config(game)
+                ui = config.to_ui(game, initial)
+                config.apply_ui(game, initial, {k: v for k, v in ui.items() if not k.startswith("lana:")})
+
+    def test_game_with_known_incompatibility_is_not_installable(self):
+        for _, game in real_definitions():
+            if game.get("compat", {}).get("level") == "bad":
+                v = machine.verdict(game["requirements"], [], {"ram_gb": 64, "disk_free_gb": 1000, "tools": {}}, game["compat"])
+                self.assertEqual(v["level"], "bad")
+                self.assertIn(game["compat"]["note"], v["messages"])
+
+
 class MachineTests(unittest.TestCase):
     base = {"ram_gb": 8.0, "disk_free_gb": 100, "tools": {"wine": "/x/wine", "java": None}}
 
@@ -351,6 +419,81 @@ class PropertiesTests(unittest.TestCase):
             self.assertIn(port["from"], keys)
         self.assertEqual(game["connect"].format(lan_ip="1.2.3.4", **{"server-port": 25565}), "1.2.3.4:25565")
         self.assertTrue(game["eula"]["url"].startswith("https://"))
+
+
+UE = {
+    "id": "fakeue", "name": "Faux Palworld",
+    "install": {"type": "none"},
+    "run": {"runtime": "native", "command": ["sleep", "300"], "cwd": "."},
+    "requirements": {"ram_gb_min": 1, "ram_gb_recommended": 1, "disk_gb": 1},
+    "savegame": "Pal/Saved/SaveGames",
+    "config": {"file": "Pal/Saved/Config/WindowsServer/PalWorldSettings.ini", "format": "ue_options",
+               "section": "/Script/Pal.PalGameWorldSettings", "seed_from": "Default.ini",
+               "initial": {"ServerName": "Mon serveur", "AdminPassword": "{random}"}},
+    "fields": [
+        {"key": "ServerName", "label": "Nom", "type": "text", "default": "x", "maxlen": 60},
+        {"key": "AdminPassword", "label": "Admin", "type": "text", "default": ""},
+        {"key": "ExpRate", "label": "XP", "type": "float", "min": 0.1, "max": 20, "default": 1},
+        {"key": "ServerPlayerMaxNum", "label": "Joueurs", "type": "int", "min": 1, "max": 32, "default": 32},
+        {"key": "bIsPvP", "label": "PvP", "type": "bool", "default": False},
+        {"key": "DeathPenalty", "label": "Mort", "type": "enum", "options": ["None", "Item", "All"], "default": "All"},
+    ],
+}
+games._cache["fakeue"] = UE
+UE_DEFAULT = ('; défauts du jeu\n[/Script/Pal.PalGameWorldSettings]\n'
+              'OptionSettings=(Difficulty=None,ExpRate=1.000000,ServerName="Default Palworld Server",'
+              'ServerDescription="a, b (c)",bIsPvP=False,DenyTechnologyList=("PALBOX","Repair,Bench"),'
+              'DeathPenalty=All,ServerPlayerMaxNum=32,AdminPassword="")\n')
+
+
+class UnrealOptionsTests(unittest.TestCase):
+    def make(self):
+        inst = instances.Instance.create("fakeue")
+        os.makedirs(inst.server_dir)
+        write(os.path.join(inst.server_dir, "Default.ini"), UE_DEFAULT)
+        return inst
+
+    def ini(self, inst):
+        return read(os.path.join(inst.server_dir, UE["config"]["file"]))
+
+    def test_initial_config_starts_from_the_games_own_defaults(self):
+        inst = self.make()
+        config.write_initial(UE, inst.server_dir)
+        ui = config.to_ui(UE, config.read_file(UE, inst.server_dir))
+        self.assertEqual(ui["ServerName"], "Mon serveur")             # imposé par LANa
+        self.assertEqual(ui["ExpRate"], 1.0)                          # repris du fichier du jeu
+        self.assertEqual(ui["ServerPlayerMaxNum"], 32)
+        self.assertNotEqual(ui["AdminPassword"], "{random}")
+        self.assertTrue(len(ui["AdminPassword"]) >= 8)
+        text = self.ini(inst)
+        self.assertIn("DenyTechnologyList=(\"PALBOX\",\"Repair,Bench\")", text)  # clé inconnue : conservée telle quelle
+        self.assertIn("ServerDescription=\"a, b (c)\"", text)                   # virgules et parenthèses entre guillemets
+
+    def test_write_uses_the_games_formatting_and_keeps_the_rest(self):
+        inst = self.make()
+        config.write_initial(UE, inst.server_dir)
+        values = config.to_ui(UE, config.read_file(UE, inst.server_dir))
+        values.update({"ExpRate": 1.2, "bIsPvP": True, "DeathPenalty": "Item", "ServerName": 'Les "Pals", rois'})
+        config.write_file(UE, inst.server_dir, config.apply_ui(UE, config.read_file(UE, inst.server_dir), values))
+        text = self.ini(inst)
+        self.assertIn("ExpRate=1.200000", text)
+        self.assertIn("bIsPvP=True", text)
+        self.assertIn("DeathPenalty=Item", text)
+        self.assertTrue(text.startswith("; défauts du jeu\n[/Script/Pal.PalGameWorldSettings]\n"))
+        self.assertIn("Difficulty=None", text)
+        back = config.to_ui(UE, config.read_file(UE, inst.server_dir))
+        self.assertEqual(back["ServerName"], 'Les "Pals", rois')    # aller-retour avec guillemets et virgule
+        self.assertIs(back["bIsPvP"], True)
+
+    def test_split_ignores_commas_inside_quotes_and_parentheses(self):
+        parts = config._split_top_level('A=1,B="x,y",C=("p","q,r"),D="a\\"b,c"')
+        self.assertEqual(parts, ['A=1', 'B="x,y"', 'C=("p","q,r")', 'D="a\\"b,c"'])
+
+    def test_ini_without_option_line_gets_one(self):
+        inst = instances.Instance.create("fakeue")
+        os.makedirs(inst.server_dir)
+        config.write_file(UE, inst.server_dir, {"ServerName": "Neuf"})
+        self.assertIn("[/Script/Pal.PalGameWorldSettings]\nOptionSettings=(ServerName=\"Neuf\")", self.ini(inst))
 
 
 class EulaTests(unittest.TestCase):

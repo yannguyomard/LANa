@@ -1,0 +1,281 @@
+{
+  "id": "vrising",
+  "name": "V Rising",
+  "install": {
+    "type": "steamcmd",
+    "appid": 1829350,
+    "platform": "windows",
+    "check_file": "VRisingServer.exe"
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "VRisingServer.exe",
+      "-persistentDataPath",
+      ".\\save-data",
+      "-logFile",
+      ".\\logs\\VRisingServer.log"
+    ],
+    "env": {
+      "SteamAppId": "1604030"
+    },
+    "cwd": ".",
+    "startup_seconds": 90
+  },
+  "requirements": {
+    "ram_gb_min": 4,
+    "ram_gb_recommended": 8,
+    "disk_gb": 4,
+    "note": "Serveur Windows exécuté sous Wine : peu de joueurs sur une machine de 8 Go."
+  },
+  "ports": [
+    {
+      "from": "Port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "QueryPort",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Liste des serveurs"
+    }
+  ],
+  "connect": "{lan_ip}:{Port}",
+  "savegame": "save-data/Saves",
+  "log_file": "logs/VRisingServer.log",
+  "config": {
+    "file": "save-data/Settings/ServerHostSettings.json",
+    "format": "json",
+    "seed_from": "VRisingServer_Data/StreamingAssets/Settings/ServerHostSettings.json",
+    "initial": {
+      "Name": "Serveur V Rising",
+      "MaxConnectedUsers": 10,
+      "Password": "{random}",
+      "Rcon": {
+        "Password": "{random}"
+      }
+    }
+  },
+  "fields": [
+    {
+      "key": "Name",
+      "label": "Nom du serveur",
+      "type": "text",
+      "group": "Serveur",
+      "default": "V Rising Server",
+      "maxlen": 60
+    },
+    {
+      "key": "Description",
+      "label": "Description",
+      "type": "text",
+      "group": "Serveur",
+      "default": "",
+      "maxlen": 200,
+      "required": false
+    },
+    {
+      "key": "Password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "group": "Serveur",
+      "default": "",
+      "maxlen": 60,
+      "required": false
+    },
+    {
+      "key": "MaxConnectedUsers",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "group": "Serveur",
+      "default": 40,
+      "min": 1,
+      "max": 128
+    },
+    {
+      "key": "MaxConnectedAdmins",
+      "label": "Places réservées aux admins",
+      "type": "int",
+      "group": "Serveur",
+      "default": 4,
+      "min": 0,
+      "max": 16
+    },
+    {
+      "key": "Port",
+      "label": "Port de jeu",
+      "type": "int",
+      "group": "Serveur",
+      "default": 9876,
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port UDP à ouvrir sur la box"
+    },
+    {
+      "key": "QueryPort",
+      "label": "Port de la liste des serveurs",
+      "type": "int",
+      "group": "Serveur",
+      "default": 9877,
+      "min": 1024,
+      "max": 65535,
+      "hint": "UDP, nécessaire seulement pour apparaître dans la liste"
+    },
+    {
+      "key": "Secure",
+      "label": "Protection anti-triche (VAC)",
+      "type": "bool",
+      "group": "Serveur",
+      "default": true
+    },
+    {
+      "key": "ListOnSteam",
+      "label": "Lister sur Steam",
+      "type": "bool",
+      "group": "Serveur",
+      "default": false
+    },
+    {
+      "key": "ListOnEOS",
+      "label": "Lister sur Epic (EOS)",
+      "type": "bool",
+      "group": "Serveur",
+      "default": false
+    },
+    {
+      "key": "GameSettingsPreset",
+      "label": "Préréglage de règles",
+      "type": "enum",
+      "group": "Jeu",
+      "default": "",
+      "options": [
+        "",
+        "DuoPvP",
+        "DuoPvP_DailySiege",
+        "DuoPvP_NoSiege",
+        "DuoPvP_WeekendSiege",
+        "HardcoreDuoPvP",
+        "HardcorePvP",
+        "HardcoreTrioPvP",
+        "Level30PvE",
+        "Level30PvP",
+        "Level40PvE",
+        "Level40PvP",
+        "Level50PvE",
+        "Level50PvP",
+        "Level60PvE",
+        "Level60PvP",
+        "Level70PvE",
+        "Level70PvP",
+        "Level80PvE",
+        "Level80PvP",
+        "Level90PvE",
+        "Level90PvP",
+        "SoloPvP",
+        "StandardPvE",
+        "StandardPvP",
+        "StandardPvP_DailySiege",
+        "StandardPvP_NoSiege",
+        "StandardPvP_WeekendSiege",
+        "TrioPvP",
+        "TrioPvP_DailySiege",
+        "TrioPvP_NoSiege",
+        "TrioPvP_WeekendSiege"
+      ],
+      "labels": {
+        "": "Règles par défaut du serveur"
+      },
+      "hint": "À laisser vide pour charger une sauvegarde copiée d'ailleurs"
+    },
+    {
+      "key": "GameDifficultyPreset",
+      "label": "Préréglage de difficulté",
+      "type": "enum",
+      "group": "Jeu",
+      "default": "",
+      "options": [
+        "",
+        "Difficulty_Brutal",
+        "Difficulty_Easy",
+        "Difficulty_Normal"
+      ],
+      "labels": {
+        "": "Aucun"
+      }
+    },
+    {
+      "key": "SaveName",
+      "label": "Nom de la sauvegarde",
+      "type": "text",
+      "group": "Jeu",
+      "default": "world1",
+      "maxlen": 40,
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "pattern_hint": "lettres, chiffres, - et _ seulement (nom de dossier)",
+      "hint": "Changer le nom crée un nouveau monde"
+    },
+    {
+      "key": "AutoSaveCount",
+      "label": "Sauvegardes automatiques gardées",
+      "type": "int",
+      "group": "Sauvegardes",
+      "default": 20,
+      "min": 1,
+      "max": 200
+    },
+    {
+      "key": "AutoSaveInterval",
+      "label": "Intervalle de sauvegarde (secondes)",
+      "type": "int",
+      "group": "Sauvegardes",
+      "default": 120,
+      "min": 30,
+      "max": 3600
+    },
+    {
+      "key": "CompressSaveFiles",
+      "label": "Compresser les sauvegardes",
+      "type": "bool",
+      "group": "Sauvegardes",
+      "default": true
+    },
+    {
+      "key": "ServerFps",
+      "label": "Images par seconde du serveur",
+      "type": "int",
+      "group": "Performances",
+      "default": 30,
+      "min": 10,
+      "max": 60,
+      "hint": "Plus bas = plus léger pour la machine"
+    },
+    {
+      "key": "Rcon.Enabled",
+      "label": "RCON (administration à distance)",
+      "type": "bool",
+      "group": "Administration",
+      "default": false
+    },
+    {
+      "key": "Rcon.Port",
+      "label": "Port RCON (TCP)",
+      "type": "int",
+      "group": "Administration",
+      "default": 25575,
+      "min": 1024,
+      "max": 65535
+    },
+    {
+      "key": "Rcon.Password",
+      "label": "Mot de passe RCON",
+      "type": "text",
+      "group": "Administration",
+      "default": "",
+      "maxlen": 60,
+      "required": false,
+      "hint": "Obligatoire si le RCON est activé"
+    }
+  ]
+}

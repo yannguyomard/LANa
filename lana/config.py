@@ -6,6 +6,7 @@ Chaque champ de la définition a une clé `key` : chemin pointé dans le fichier
 import copy
 import json
 import os
+import re
 import secrets
 import shutil
 
@@ -41,9 +42,12 @@ def set_path(data, path, value, flat=False):
 
 # ---------- fichier (pilotes de format) ----------
 
+FLAT_FORMATS = ("properties", "ue_options")
+
+
 def is_flat(game):
-    """Les fichiers .properties n'ont pas de sections : la clé entière est le nom de la propriété."""
-    return game["config"]["format"] == "properties"
+    """Formats sans sections (.properties, OptionSettings d'Unreal) : la clé entière est le nom du réglage."""
+    return game["config"]["format"] in FLAT_FORMATS
 
 
 def _config_path(game, root):
@@ -69,15 +73,123 @@ def _stringify(value):
     return str(value).lower() if isinstance(value, bool) else str(value)
 
 
+def _split_top_level(text):
+    """Découpe "A=1,B=\"x,y\",C=(1,2)" aux virgules qui ne sont ni entre guillemets ni entre parenthèses."""
+    parts, cur, depth, quoted, i = [], [], 0, False, 0
+    while i < len(text):
+        c = text[i]
+        if quoted:
+            cur.append(c)
+            if c == "\\" and i + 1 < len(text):
+                i += 1
+                cur.append(text[i])
+            elif c == '"':
+                quoted = False
+        elif c == '"':
+            quoted = True
+            cur.append(c)
+        elif c in "(":
+            depth += 1
+            cur.append(c)
+        elif c == ")":
+            depth -= 1
+            cur.append(c)
+        elif c == "," and depth == 0:
+            parts.append("".join(cur))
+            cur = []
+        else:
+            cur.append(c)
+        i += 1
+    if cur:
+        parts.append("".join(cur))
+    return parts
+
+
+def _find_option_line(lines):
+    for i, line in enumerate(lines):
+        if line.strip().startswith("OptionSettings="):
+            return i
+    return None
+
+
+def _ue_coerce(field, raw):
+    t = field["type"]
+    try:
+        if t == "bool":
+            return raw.strip().lower() == "true"
+        if t == "int":
+            return int(float(raw))
+        if t == "float":
+            return float(raw)
+    except ValueError:
+        return field.get("default")
+    if t == "text":
+        raw = raw.strip()
+        if len(raw) >= 2 and raw[0] == raw[-1] == '"':
+            raw = raw[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        return raw
+    return raw.strip()
+
+
+def _ue_stringify(field, value):
+    """Valeur typée -> texte tel que l'écrit le jeu (True/False, 6 décimales, chaînes entre guillemets)."""
+    if field is None:
+        return str(value)
+    t = field["type"]
+    if t == "bool":
+        return "True" if value else "False"
+    if t == "float":
+        return "%.6f" % value
+    if t == "text":
+        return '"%s"' % str(value).replace("\\", "\\\\").replace('"', '\\"')
+    return str(value)
+
+
+def _read_ue_options(game, path):
+    with open(path, encoding="utf-8-sig") as fh:
+        lines = fh.read().splitlines()
+    idx = _find_option_line(lines)
+    if idx is None:
+        return {}
+    body = lines[idx].strip()[len("OptionSettings="):].strip()
+    if body.startswith("(") and body.endswith(")"):
+        body = body[1:-1]
+    fields = {f["key"]: f for f in game["fields"]}
+    out = {}
+    for token in _split_top_level(body):
+        key, _, raw = token.partition("=")
+        key = key.strip()
+        if key:
+            out[key] = _ue_coerce(fields[key], raw) if key in fields else raw
+    return out
+
+
+def _write_ue_options(game, path, data):
+    lines = []
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    fields = {f["key"]: f for f in game["fields"]}
+    option = "OptionSettings=(%s)" % ",".join("%s=%s" % (k, _ue_stringify(fields.get(k), v)) for k, v in data.items())
+    idx = _find_option_line(lines)
+    if idx is None:
+        lines += ["[%s]" % game["config"].get("section", "/Script/Engine.Settings"), option]
+    else:
+        lines[idx] = option
+    return "\n".join(lines) + "\n"
+
+
 def read_file(game, root):
     path = _config_path(game, root)
     if not os.path.exists(path):
         return {}
+    if game["config"]["format"] == "ue_options":
+        return _read_ue_options(game, path)
     if not is_flat(game):
-        with open(path, encoding="utf-8") as fh:
+        with open(path, encoding="utf-8-sig") as fh:  # -sig : certains jeux écrivent un BOM
             return json.load(fh)
     props = {}
-    with open(path, encoding="utf-8") as fh:
+    with open(path, encoding="utf-8-sig") as fh:
         for line in fh:
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
@@ -91,8 +203,12 @@ def write_file(game, root, data):
     path = _config_path(game, root)
     if os.path.exists(path):
         shutil.copy2(path, path + ".bak")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
-    if not is_flat(game):
+    if game["config"]["format"] == "ue_options":
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(_write_ue_options(game, path, data))
+    elif not is_flat(game):
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(data, fh, indent=2, ensure_ascii=False)
     else:
@@ -125,7 +241,29 @@ def initial_config(game):
         if isinstance(node, str) and node == "{random}":
             return secrets.token_urlsafe(9)
         return node
-    return fill(copy.deepcopy(game["config"]["initial"]))
+    return fill(copy.deepcopy(game["config"].get("initial", {})))
+
+
+def _deep_merge(base, extra):
+    for key, value in extra.items():
+        if isinstance(value, dict) and isinstance(base.get(key), dict):
+            _deep_merge(base[key], value)
+        else:
+            base[key] = value
+    return base
+
+
+def write_initial(game, root):
+    """Crée la config de départ : copie du fichier par défaut du jeu (`seed_from`, si présent), puis
+    valeurs imposées par LANa (`initial`). Partir du fichier du jeu évite d'inventer ses valeurs par défaut."""
+    spec = game["config"]
+    target = _config_path(game, root)
+    seed = os.path.join(root, spec["seed_from"]) if spec.get("seed_from") else None
+    if seed and os.path.exists(seed):
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        shutil.copyfile(seed, target)
+    data = read_file(game, root)
+    write_file(game, root, _deep_merge(data, initial_config(game)))
 
 
 # ---------- conversion fichier <-> interface ----------
@@ -151,6 +289,8 @@ def _from_ui_value(field, value):
             raise ValueError("%s : ne peut pas être vide" % label)
         if len(value) > field.get("maxlen", 200):
             raise ValueError("%s : trop long" % label)
+        if field.get("pattern") and value and not re.match(field["pattern"], value):
+            raise ValueError("%s : %s" % (label, field.get("pattern_hint", "caractères non permis")))
         return value
     if t == "enum":
         if value not in field["options"]:

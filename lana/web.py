@@ -37,7 +37,7 @@ def games_payload():
     for game in games.load_all().values():
         out.append({"id": game["id"], "name": game["name"], "requirements": game["requirements"],
                     "eula": game.get("eula"),
-                    "verdict": machine.verdict(game["requirements"], games.needs(game), mach)})
+                    "verdict": machine.verdict(game["requirements"], games.needs(game), mach, game.get("compat"))})
     return out
 
 
@@ -53,8 +53,10 @@ def instance_payload(inst):
         ip = machine.lan_ip()
         out["ports"] = [{"label": p["label"], "proto": p["proto"], "port": values[p["from"]] + p["offset"]}
                         for p in game.get("ports", [])]
-        out["connect"] = game.get("connect", "").format(lan_ip=ip or "?", **{
-            k: v for k, v in values.items() if "." not in k})
+        # Les clés à point ou à deux-points ne sont pas utilisables dans un format : réglages LANa sous leur nom court.
+        names = {k: v for k, v in values.items() if "." not in k and ":" not in k}
+        names.update({k[len("lana:"):]: v for k, v in values.items() if k.startswith("lana:")})
+        out["connect"] = game.get("connect", "").format(lan_ip=ip or "?", **names)
         out["backups"] = inst.backups()
         out["import_formats"] = inst.import_formats()
     return out
