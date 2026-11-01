@@ -9,12 +9,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _home = tempfile.mkdtemp(prefix="lana-test-")
 os.environ["LANA_HOME"] = _home
 
-from lana import config, games, instances, machine  # noqa: E402
+from lana import config, games, instances, machine, runtime, system  # noqa: E402
 
 FAKE = {
     "id": "fake", "name": "Faux jeu",
     "install": {"type": "none"},
-    "run": {"runtime": "native", "command": ["sleep", "300"], "cwd": "."},
+    "run": {"runtime": "native", "command": [sys.executable, "-c", "import time; time.sleep(300)"], "cwd": "."},
     "requirements": {"ram_gb_min": 4, "ram_gb_recommended": 16, "disk_gb": 1},
     "savegame": "save",
     "save_import": [{"label": "Fichier test", "extensions": [".sav"], "magic": "MAGI", "target": "world.sav"}],
@@ -144,7 +144,7 @@ class AllGameDefinitionsTests(unittest.TestCase):
     def test_game_with_known_incompatibility_is_not_installable(self):
         for _, game in real_definitions():
             if game.get("compat", {}).get("level") == "bad":
-                v = machine.verdict(game["requirements"], [], {"ram_gb": 64, "disk_free_gb": 1000, "tools": {}}, game["compat"])
+                v = machine.verdict(game["requirements"], [], {"ram_gb": 64, "disk_free_gb": 1000, "tools": {}}, dict(game["compat"], platforms=None))
                 self.assertEqual(v["level"], "bad")
                 self.assertIn(game["compat"]["note"], v["messages"])
 
@@ -344,7 +344,7 @@ PROPS = {
     "id": "fakeprops", "name": "Faux Minecraft",
     "install": {"type": "none"},
     "eula": {"label": "CLUF", "url": "https://example.test/eula", "file": "eula.txt", "content": "eula=true\n"},
-    "run": {"runtime": "native", "command": ["sleep", "300"], "cwd": "."},
+    "run": {"runtime": "native", "command": [sys.executable, "-c", "import time; time.sleep(300)"], "cwd": "."},
     "requirements": {"ram_gb_min": 1, "ram_gb_recommended": 1, "disk_gb": 1},
     "savegame": "world",
     "world_zip": {"label": "Monde (.zip)", "marker": "level.dat"},
@@ -424,7 +424,7 @@ class PropertiesTests(unittest.TestCase):
 UE = {
     "id": "fakeue", "name": "Faux Palworld",
     "install": {"type": "none"},
-    "run": {"runtime": "native", "command": ["sleep", "300"], "cwd": "."},
+    "run": {"runtime": "native", "command": [sys.executable, "-c", "import time; time.sleep(300)"], "cwd": "."},
     "requirements": {"ram_gb_min": 1, "ram_gb_recommended": 1, "disk_gb": 1},
     "savegame": "Pal/Saved/SaveGames",
     "config": {"file": "Pal/Saved/Config/WindowsServer/PalWorldSettings.ini", "format": "ue_options",
@@ -574,6 +574,47 @@ class ZipWorldImportTests(unittest.TestCase):
         write(inst.meta_path, json.dumps(meta))
         with self.assertRaises(instances.InstanceError):
             inst.import_save(self.zipfile({"level.dat": "x"}), "w.zip")
+
+
+
+
+class PlatformTests(unittest.TestCase):
+    def test_meminfo_et_cpuinfo(self):
+        self.assertEqual(system.parse_meminfo("MemTotal:        8040312 kB\nMemFree: 1 kB\n"), 8040312 * 1024)
+        self.assertIsNone(system.parse_meminfo("rien"))
+        self.assertEqual(system.parse_cpuinfo("processor\t: 0\nmodel name\t: Intel(R) Core(TM) i5\n"), "Intel(R) Core(TM) i5")
+
+    def test_url_du_jre_selon_le_systeme(self):
+        self.assertTrue(runtime.adoptium_url(21, mac=True, windows=False, machine_arch="x86_64").endswith("/21/ga/mac/x64/jre/hotspot/normal/eclipse"))
+        self.assertIn("/ga/linux/aarch64/", runtime.adoptium_url(21, mac=False, windows=False, machine_arch="aarch64"))
+        self.assertIn("/ga/windows/x64/", runtime.adoptium_url(21, mac=False, windows=True, machine_arch="AMD64"))
+
+    def test_incompatibilite_limitee_a_une_plateforme(self):
+        compat = {"level": "bad", "note": "n", "platforms": ["plateforme-inconnue"]}
+        mach = {"ram_gb": 64, "disk_free_gb": 1000, "tools": {}}
+        self.assertEqual(machine.verdict({}, [], mach, compat)["level"], "ok")
+        self.assertEqual(machine.verdict({}, [], mach, dict(compat, platforms=[system.PLATFORM]))["level"], "bad")
+
+    def test_wine_seulement_hors_windows(self):
+        self.assertEqual(system.uses_wine("java"), False)
+        self.assertEqual(system.uses_wine("wine"), not system.IS_WINDOWS)
+
+    def test_detection_de_la_machine(self):
+        info = machine.detect()
+        self.assertTrue(info["os"])
+        self.assertTrue(info["ram_gb"] is None or info["ram_gb"] > 0)
+
+    def test_archive_zip_refuse_les_chemins_hors_destination(self):
+        import zipfile
+        folder = tempfile.mkdtemp(prefix="lana-zip-")
+        try:
+            archive = os.path.join(folder, "a.zip")
+            with zipfile.ZipFile(archive, "w") as zf:
+                zf.writestr("../evil.txt", "x")
+            with self.assertRaises(RuntimeError):
+                runtime._safe_extract(archive, os.path.join(folder, "out"))
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
 
 
 if __name__ == "__main__":

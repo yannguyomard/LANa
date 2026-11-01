@@ -1,7 +1,9 @@
 """Exécution des serveurs : Wine, SteamCMD, lancement et arrêt de processus."""
+import ctypes
 import hashlib
 import json
 import os
+import platform
 import signal
 import subprocess
 import tarfile
@@ -9,11 +11,11 @@ import time
 import urllib.request
 import zipfile
 
-from . import machine, paths
+from . import machine, paths, system
 
 STEAMCMD_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
 MOJANG_MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
-ADOPTIUM_JRE = "https://api.adoptium.net/v3/binary/latest/%d/ga/mac/x64/jre/hotspot/normal/eclipse"
+ADOPTIUM_JRE = "https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jre/hotspot/normal/eclipse"
 USER_AGENT = "LANa"
 
 
@@ -47,9 +49,26 @@ def download(url, dest, job, label, sha1=None):
     os.replace(tmp, dest)
 
 
+def adoptium_url(min_major, mac=None, windows=None, machine_arch=None):
+    """URL du JRE Temurin adapté au système (macOS, Linux ou Windows) et au processeur (x64 ou aarch64)."""
+    mac = system.IS_MAC if mac is None else mac
+    windows = system.IS_WINDOWS if windows is None else windows
+    arch = (machine_arch or platform.machine()).lower()
+    arch = "aarch64" if arch in ("arm64", "aarch64") else "x64"
+    return ADOPTIUM_JRE % (min_major, "mac" if mac else "windows" if windows else "linux", arch)
+
+
 def _safe_extract(tar_path, dest):
-    """Extrait une archive en refusant tout membre qui sortirait de dest (liens compris)."""
+    """Extrait une archive (tar.gz ou zip) en refusant tout membre qui sortirait de dest (liens compris)."""
     base = os.path.realpath(dest)
+    if zipfile.is_zipfile(tar_path):
+        with zipfile.ZipFile(tar_path) as zf:
+            for name in zf.namelist():
+                target = os.path.realpath(os.path.join(base, name))
+                if target != base and not target.startswith(base + os.sep):
+                    raise RuntimeError("Archive invalide : %s" % name)
+            zf.extractall(base)
+        return
     with tarfile.open(tar_path) as tar:
         for m in tar.getmembers():
             target = os.path.realpath(os.path.join(base, m.name))
@@ -70,8 +89,8 @@ def ensure_java(min_major, job):
     job.log("Java %d introuvable : installation d'un JRE portable (Eclipse Temurin), sans toucher au système." % min_major)
     folder = os.path.join(paths.TOOLS_DIR, "java")
     os.makedirs(folder, exist_ok=True)
-    archive = os.path.join(folder, "jre-%d.tar.gz" % min_major)
-    download(ADOPTIUM_JRE % min_major, archive, job, "Java %d (environ 50 Mo)" % min_major)
+    archive = os.path.join(folder, "jre-%d.archive" % min_major)
+    download(adoptium_url(min_major), archive, job, "Java %d (environ 50 Mo)" % min_major)
     _safe_extract(archive, folder)
     os.remove(archive)
     found = machine.find_java(min_major)
@@ -128,7 +147,7 @@ def init_prefix(prefix, job):
 def ensure_steamcmd(job):
     """Télécharge SteamCMD pour Windows (outil officiel de Valve) s'il est absent."""
     folder = os.path.join(paths.TOOLS_DIR, "steamcmd")
-    exe = os.path.join(folder, "steamcmd.exe")
+    exe = os.path.join(folder, "steamcmd.exe")   # build Windows : sous Wine ailleurs que sous Windows
     if os.path.exists(exe):
         return exe
     job.log("Téléchargement de SteamCMD (Valve)…")
@@ -151,15 +170,17 @@ def steamcmd_install(game, server_dir, prefix, job):
     jusqu'à ce que les fichiers du jeu soient là.
     """
     spec = game["install"]
-    wine = machine.find_tool("wine")
     exe = ensure_steamcmd(job)
     os.makedirs(server_dir, exist_ok=True)
     check = os.path.join(server_dir, spec["check_file"])
     for attempt in range(1, 4):
         job.log("SteamCMD, passage %d : téléchargement du serveur (plusieurs Go)…" % attempt)
-        cmd = [wine, exe, "+force_install_dir", windows_path(server_dir), "+login", "anonymous",
-               "+app_update", str(spec["appid"]), "validate", "+quit"]
-        proc = subprocess.Popen(cmd, cwd=os.path.dirname(exe), env=wine_env(prefix),
+        if system.IS_WINDOWS:
+            cmd, env, folder = [exe], dict(os.environ), server_dir
+        else:
+            cmd, env, folder = [machine.find_tool("wine"), exe], wine_env(prefix), windows_path(server_dir)
+        cmd += ["+force_install_dir", folder, "+login", "anonymous", "+app_update", str(spec["appid"]), "validate", "+quit"]
+        proc = subprocess.Popen(cmd, cwd=os.path.dirname(exe), env=env,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
         last = ""
         for line in proc.stdout:
@@ -186,9 +207,12 @@ def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0)
     run = game["run"]
     cmd = [a.format(**(settings or {})) if "{" in a else a for a in run["command"]]
     env = dict(os.environ)
-    if run["runtime"] == "wine":
+    cwd = os.path.join(server_dir, run.get("cwd", "."))
+    if system.uses_wine(run["runtime"]):
         cmd = [machine.find_tool("wine")] + cmd
         env = wine_env(prefix)
+    elif run["runtime"] == "wine":   # Windows : l'exécutable du jeu se lance directement
+        cmd[0] = os.path.join(cwd, cmd[0])
     elif run["runtime"] == "java":
         java = machine.find_java(java_min)
         if not java:
@@ -200,14 +224,30 @@ def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0)
     log.write(("\n===== Démarrage %s =====\n" % time.strftime("%Y-%m-%d %H:%M:%S")).encode())
     log.flush()
     try:
-        return subprocess.Popen(cmd, cwd=os.path.join(server_dir, run.get("cwd", ".")), env=env,
-                                stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                start_new_session=True)
+        # Groupe de processus à part, pour pouvoir arrêter le serveur et ses enfants sans toucher à LANa.
+        group = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if system.IS_WINDOWS else {"start_new_session": True}
+        return subprocess.Popen(cmd, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT,
+                                stdin=subprocess.DEVNULL, **group)
     finally:
         log.close()  # le processus enfant garde sa propre copie du descripteur
 
 
+def _windows_pid_alive(pid):
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        return False
+    try:
+        code = ctypes.c_ulong()
+        return bool(kernel32.GetExitCodeProcess(handle, ctypes.byref(code))) and code.value == 259   # STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 def group_alive(pgid):
+    """Le serveur (ou l'un de ses processus) tourne-t-il encore ? Sous Windows, `pgid` est le pid du serveur."""
+    if system.IS_WINDOWS:
+        return _windows_pid_alive(pgid)
     # Le chef de groupe a pour pid le pgid : on récupère son état de sortie, sinon il reste
     # zombie et le groupe paraît vivant. ChildProcessError = ce n'est pas notre enfant.
     try:
@@ -223,25 +263,43 @@ def group_alive(pgid):
         return True
 
 
-def stop_group(pgid, runtime, prefix, wait=30, sig=signal.SIGTERM):
-    """Arrêt propre (`sig`, SIGTERM par défaut) puis forcé ; sous Wine, on termine aussi wineserver."""
+def stop_signal(name):
+    """Signal d'arrêt demandé par un jeu ("TERM", "INT"…). Windows n'a que Ctrl+Pause, que Java et Unreal traitent comme un arrêt."""
+    if system.IS_WINDOWS:
+        return signal.CTRL_BREAK_EVENT
+    return getattr(signal, "SIG" + name)
+
+
+def _signal_group(pgid, sig):
     try:
-        os.killpg(pgid, sig)
-    except ProcessLookupError:
+        if system.IS_WINDOWS:
+            os.kill(pgid, sig)
+        else:
+            os.killpg(pgid, sig)
+    except (ProcessLookupError, PermissionError, OSError):
         pass
+
+
+def _kill_group(pgid):
+    if system.IS_WINDOWS:
+        subprocess.run(["taskkill", "/PID", str(pgid), "/T", "/F"], capture_output=True)
+    else:
+        _signal_group(pgid, signal.SIGKILL)
+
+
+def stop_group(pgid, wine, prefix, wait=30, sig=None):
+    """Arrêt propre (`sig`, SIGTERM par défaut) puis forcé ; sous Wine (`wine` vrai), on termine aussi wineserver."""
+    _signal_group(pgid, sig if sig is not None else stop_signal("TERM"))
     for _ in range(wait):
         if not group_alive(pgid):
             break
         time.sleep(1)
     if group_alive(pgid):
-        try:
-            os.killpg(pgid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    if runtime == "wine":
-        wineserver = machine.find_tool("wine")
-        if wineserver:
-            subprocess.run([os.path.join(os.path.dirname(wineserver), "wineserver"), "-k"],
+        _kill_group(pgid)
+    if wine:
+        found = machine.find_tool("wine")
+        if found:
+            subprocess.run([os.path.join(os.path.dirname(found), "wineserver"), "-k"],
                            env=wine_env(prefix), capture_output=True)
     time.sleep(1)
     return not group_alive(pgid)

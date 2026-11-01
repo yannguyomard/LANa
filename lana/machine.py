@@ -6,7 +6,7 @@ import re
 import shutil
 import subprocess
 
-from . import paths
+from . import paths, system
 
 # Outil nécessaire -> noms d'exécutables possibles
 TOOLS = {"wine": ["wine", "wine64"], "java": ["java"]}
@@ -46,10 +46,18 @@ def parse_java_major(text):
 
 def java_candidates():
     """Exécutables java possibles : JRE téléchargés par LANa, puis Java du système."""
-    found = sorted(glob.glob(os.path.join(paths.TOOLS_DIR, "java", "*", "Contents", "Home", "bin", "java")))
+    exe = "java.exe" if system.IS_WINDOWS else "java"
+    layout = ("*", "Contents", "Home", "bin", exe) if system.IS_MAC else ("*", "bin", exe)   # le JRE macOS est un bundle
+    found = sorted(glob.glob(os.path.join(paths.TOOLS_DIR, "java", *layout)))
+    if os.environ.get("JAVA_HOME"):
+        found.append(os.path.join(os.environ["JAVA_HOME"], "bin", exe))
+    if system.IS_WINDOWS:
+        for root in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
+            if root:
+                found += sorted(glob.glob(os.path.join(root, "*", "*", "bin", "java.exe")))   # Adoptium, Java, Zulu…
     search = os.pathsep.join(paths.TOOL_DIRS + [os.environ.get("PATH", "")])
-    system = shutil.which("java", path=search)
-    return found + ([system] if system else [])
+    on_path = shutil.which("java", path=search)
+    return [p for p in found if os.path.exists(p)] + ([on_path] if on_path else [])
 
 
 def find_java(min_major):
@@ -62,35 +70,17 @@ def find_java(min_major):
     return best[1] if best else None
 
 
-def _sysctl(key):
-    try:
-        return subprocess.run(["sysctl", "-n", key], capture_output=True, text=True, timeout=5).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return ""
-
-
-def lan_ip():
-    try:
-        for iface in ("en0", "en1"):
-            ip = subprocess.run(["ipconfig", "getifaddr", iface], capture_output=True, text=True, timeout=5).stdout.strip()
-            if ip:
-                return ip
-    except (OSError, subprocess.SubprocessError):
-        pass
-    return ""
-
-
 def detect():
-    mem = _sysctl("hw.memsize")
+    ram = system.ram_bytes()
     probe = paths.HOME if os.path.isdir(paths.HOME) else os.path.expanduser("~")
     return {
-        "ram_gb": round(int(mem) / 2**30, 1) if mem.isdigit() else None,
+        "ram_gb": round(ram / 2**30, 1) if ram else None,
         "disk_free_gb": round(shutil.disk_usage(probe).free / 2**30, 1),
-        "cpu": _sysctl("machdep.cpu.brand_string") or platform.processor(),
+        "cpu": system.cpu_name(),
         "arch": platform.machine(),
-        "macos": platform.mac_ver()[0],
-        "lan_ip": lan_ip(),
-        "tools": {name: find_tool(name) for name in TOOLS},
+        "os": system.os_label(),
+        "lan_ip": system.lan_ip(),
+        "tools": {name: find_tool(name) for name in TOOLS if name != "wine" or not system.IS_WINDOWS},
     }
 
 
@@ -99,7 +89,7 @@ def verdict(requirements, needs, machine, compat=None):
 
     Retourne {"level": "ok"|"warn"|"bad", "messages": [...], "missing": [outils]}.
     "bad" = le serveur ne tiendra probablement pas ; "warn" = il tournera, mais juste.
-    `compat` ({"level", "note"}) déclare une incompatibilité constatée du jeu avec cette configuration.
+    `compat` ({"level", "note", "platforms"?}) déclare une incompatibilité constatée du jeu avec cette configuration.
     """
     level, messages = "ok", []
 
@@ -108,7 +98,8 @@ def verdict(requirements, needs, machine, compat=None):
         if ("ok", "warn", "bad").index(new) > ("ok", "warn", "bad").index(level):
             level = new
 
-    if compat:  # incompatibilité connue de ce jeu avec la configuration visée (constatée en test)
+    if compat and (not compat.get("platforms") or any(system.PLATFORM.startswith(p) for p in compat["platforms"])):
+        # incompatibilité connue de ce jeu avec la configuration visée (constatée en test)
         raise_to(compat["level"])
         messages.append(compat["note"])
     ram = machine.get("ram_gb")

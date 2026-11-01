@@ -31,6 +31,7 @@
   },
   "compat": {
     "level": "bad",
+    "platforms": ["darwin"],
     "note": "Non fonctionnel sur Mac Intel avec Wine 11 : le serveur reste bloqué à l'initialisation graphique (testé 3 fois, y compris avec -batchmode -nographics et -force-vulkan) et n'écrit jamais sa configuration."
   },
   "ports": [

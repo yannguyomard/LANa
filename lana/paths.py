@@ -11,5 +11,6 @@ INSTANCES_DIR = os.path.join(HOME, "instances")
 TOOLS_DIR = os.path.join(HOME, "tools")
 AUTH_FILE = os.path.join(HOME, "auth.json")
 
-# Dossiers où chercher wine, java… : un lancement hors terminal n'a pas le PATH de l'utilisateur.
-TOOL_DIRS = ["/opt/local/bin", "/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"]
+from . import system
+
+TOOL_DIRS = system.tool_dirs()

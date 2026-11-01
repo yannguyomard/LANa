@@ -78,7 +78,7 @@ async function home(){
   const v=$("#view");v.innerHTML="";
 
   const mc=mk("section",{className:"card"},mk("h2",{textContent:"Cette machine"}));
-  mc.append(mk("div",{textContent:`${m.cpu||m.arch} · ${m.ram_gb??"?"} Go de RAM · ${m.disk_free_gb} Go libres · macOS ${m.macos}`}));
+  mc.append(mk("div",{textContent:`${m.cpu||m.arch} · ${m.ram_gb??"?"} Go de RAM · ${m.disk_free_gb} Go libres · ${m.os}`}));
   const tools=Object.entries(m.tools).map(([k,p])=>`${k} : ${p?"installé":"absent"}`).join(" · ");
   mc.append(mk("div",{className:"hint",textContent:tools+(m.lan_ip?` · adresse locale ${m.lan_ip}`:"")}));
   v.append(mc);

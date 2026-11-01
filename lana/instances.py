@@ -4,13 +4,12 @@ import json
 import os
 import re
 import shutil
-import signal
 import tarfile
 import threading
 import time
 import zipfile
 
-from . import config, games, jobs, machine, paths, runtime
+from . import config, games, jobs, machine, paths, runtime, system
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 KEEP_BACKUPS = 10
@@ -125,7 +124,7 @@ class Instance:
 
         def work(job):
             spec = game["install"]
-            if game["run"]["runtime"] == "wine":
+            if system.uses_wine(game["run"]["runtime"]):
                 runtime.init_prefix(self.prefix, job)
             extra = {}
             if spec["type"] == "steamcmd":
@@ -164,7 +163,7 @@ class Instance:
             settings = self._run_settings()
             ram = machine.detect()["ram_gb"]
             if ram and settings.get("memory_mb", 0) / 1024 > ram - 1.5:
-                raise InstanceError("Trop de mémoire allouée à Java (%s Mo) pour %s Go de RAM : laissez au moins 1,5 Go à macOS."
+                raise InstanceError("Trop de mémoire allouée à Java (%s Mo) pour %s Go de RAM : laissez au moins 1,5 Go au système."
                                     % (settings["memory_mb"], ram))
             try:
                 _procs[self.id] = runtime.start_process(self.game, self.server_dir, self.prefix, self.log_path,
@@ -179,8 +178,9 @@ class Instance:
                 raise InstanceError("Le serveur est déjà arrêté")
             if backup and os.path.isdir(os.path.join(self.server_dir, self.game["savegame"])):
                 self._backup_unlocked("avant-arret")
-            sig = getattr(signal, "SIG" + self.game["run"].get("stop_signal", "TERM"))
-            if not runtime.stop_group(self._pgid(), self.game["run"]["runtime"], self.prefix, sig=sig):
+            run = self.game["run"]
+            if not runtime.stop_group(self._pgid(), system.uses_wine(run["runtime"]), self.prefix,
+                                      sig=runtime.stop_signal(run.get("stop_signal", "TERM"))):
                 raise InstanceError("Le serveur ne s'est pas arrêté")
 
     # ---------- config ----------

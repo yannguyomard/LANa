@@ -2,7 +2,7 @@
 import json
 import os
 
-from . import paths
+from . import paths, system
 
 REQUIRED = ("id", "name", "install", "run", "requirements", "fields")
 _cache = {}
@@ -33,4 +33,6 @@ def get(game_id):
 def needs(game):
     """Outils externes requis par le jeu (wine, java…)."""
     runtime = game["run"].get("runtime")
-    return [runtime] if runtime in ("wine", "java") else []
+    if runtime == "java" or system.uses_wine(runtime):
+        return [runtime]
+    return []

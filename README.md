@@ -1,6 +1,6 @@
 # LANa
 
-Installer et administrer des serveurs de jeu depuis un panneau web, pensé pour de vieux Mac Intel.
+Installer et administrer des serveurs de jeu depuis un panneau web, pensé pour de vieux Mac Intel, et fonctionnel sous macOS, Linux et Windows.
 Aucune dépendance Python à installer : la bibliothèque standard suffit (Python 3.9 ou plus récent).
 
 ## Lancer
@@ -16,8 +16,11 @@ enregistré dans `~/LANa/auth.json`. Les serveurs installés vivent dans `~/LANa
 
 ## Prérequis
 
-- **Wine** pour les serveurs Windows (Enshrouded, et plus tard Palworld, V Rising, Sons of the Forest).
-  Installation conseillée : MacPorts `sudo port install wine-stable` ou Homebrew `brew install --cask wine-stable`.
+- **Python 3.9 ou plus récent**. Lancement : `python3 run.py` (macOS, Linux) ou `lancer.bat` (Windows).
+- **Wine** pour les serveurs Windows (Enshrouded, Palworld, V Rising, Sons of the Forest) sous macOS et Linux ;
+  inutile sous Windows, où les serveurs se lancent tels quels.
+  macOS : MacPorts `sudo port install wine-stable` ou Homebrew `brew install --cask wine-stable`.
+  Linux : le paquet `wine` de la distribution (ex. `sudo apt install wine64`), de préférence une version récente.
 - **Java** pour Minecraft : rien à installer. Si la machine n'a pas le Java exigé par la version de Minecraft, LANa télécharge un JRE portable (Eclipse Temurin, ~50 Mo) dans `~/LANa/tools/java`, sans toucher au système.
 
 LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d'installer.
@@ -33,6 +36,16 @@ LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d
 | Sons of the Forest | **non fonctionnel sur Mac Intel avec Wine 11** : le serveur reste bloqué à l'initialisation graphique et n'écrit jamais sa configuration (3 essais). LANa refuse de l'installer et le dit. La définition est prête pour une configuration où il démarrerait |
 
 ### Limite connue : sauvegarde à l'arrêt des serveurs Windows
+
+## Systèmes
+
+| Système | État |
+|---|---|
+| macOS Intel | testé de bout en bout |
+| Linux | **non testé** : même chemin que macOS (Wine, SteamCMD, signaux POSIX) ; la détection de la machine et les téléchargements de Java sont couverts par des tests unitaires |
+| Windows | **non testé** : serveurs lancés sans Wine, arrêt par Ctrl+Pause puis `taskkill`, détection de la mémoire par l'API Windows ; les points à vérifier en priorité sont l'arrêt des serveurs et l'import de sauvegardes (renommage de dossiers) |
+
+Sons of the Forest n'est écarté que sous macOS : l'incompatibilité constatée vient de Wine sur Mac.
 
 Sous Wine, ni SIGTERM ni SIGINT ne font sauvegarder V Rising à l'arrêt (mesuré : aucun fichier écrit ; SIGINT bloque même l'arrêt 30 s). LANa archive la sauvegarde **telle qu'elle est sur disque** avant chaque arrêt, mais la progression depuis la dernière sauvegarde automatique du jeu peut être perdue.
 Gardez donc un intervalle de sauvegarde automatique court (réglable dans chaque jeu). Une vraie commande de sauvegarde (RCON ou API REST selon le jeu) est la prochaine amélioration. Minecraft, lui, sauvegarde en quittant.
@@ -77,8 +90,8 @@ python3 -m unittest discover -s tests
 ## Structure
 
 ```
-run.py            lanceur
-lana/             machine, games, config, runtime (Wine, SteamCMD, processus), instances, jobs, web
+run.py            lanceur (lancer.bat sous Windows)
+lana/             machine, games, config, runtime (Wine, SteamCMD, processus), system (différences macOS/Linux/Windows), instances, jobs, web
 games/            une définition JSON par jeu
 web/index.html    interface
 tests/            tests unitaires (aucun ne lance Wine)
