@@ -36,6 +36,7 @@ def games_payload():
     out = []
     for game in games.load_all().values():
         out.append({"id": game["id"], "name": game["name"], "requirements": game["requirements"],
+                    "eula": game.get("eula"),
                     "verdict": machine.verdict(game["requirements"], games.needs(game), mach)})
     return out
 
@@ -45,6 +46,7 @@ def instance_payload(inst):
     out = inst.status()
     out["fields"] = game["fields"]
     out["requirements"] = game["requirements"]
+    out["eula"] = game.get("eula")
     if out["installed"]:
         values = inst.read_config()
         out["values"] = values
@@ -206,7 +208,7 @@ class Handler(BaseHTTPRequestHandler):
             game = games.get(body.get("game", ""))
             inst = Instance.create(game["id"], body.get("name"))
             try:
-                job = inst.install()
+                job = inst.install(accept_eula=body.get("accept_eula") is True)
             except InstanceError:
                 shutil.rmtree(inst.dir, ignore_errors=True)
                 raise
@@ -216,7 +218,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.fail("Introuvable", 404)
         inst, action = self.instance(match.group(1)), match.group(2)
         if action == "install":
-            return self.json({"ok": True, "job": inst.install().id})
+            return self.json({"ok": True, "job": inst.install(accept_eula=body.get("accept_eula") is True).id})
         if action == "start":
             inst.start()
             return self.json({"ok": True, "message": "Démarrage lancé (environ %s secondes)" % inst.game["run"].get("startup_seconds", 30)})

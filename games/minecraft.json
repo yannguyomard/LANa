@@ -1,0 +1,76 @@
+{
+  "id": "minecraft",
+  "name": "Minecraft (Java)",
+  "install": {"type": "mojang", "check_file": "server.jar"},
+  "eula": {
+    "label": "Contrat de licence de Minecraft (CLUF)",
+    "url": "https://aka.ms/MinecraftEULA",
+    "file": "eula.txt",
+    "content": "eula=true\n"
+  },
+  "run": {
+    "runtime": "java",
+    "command": ["-Xms256M", "-Xmx{memory_mb}M", "-jar", "server.jar", "nogui"],
+    "cwd": ".",
+    "startup_seconds": 60
+  },
+  "requirements": {
+    "ram_gb_min": 3,
+    "ram_gb_recommended": 6,
+    "disk_gb": 2,
+    "note": "Java est téléchargé automatiquement si besoin. Distances de chargement réduites par défaut pour les machines modestes."
+  },
+  "ports": [
+    {"from": "server-port", "offset": 0, "proto": "tcp", "label": "Jeu"}
+  ],
+  "connect": "{lan_ip}:{server-port}",
+  "savegame": "world",
+  "world_zip": {"label": "Monde Minecraft (.zip)", "marker": "level.dat"},
+  "config": {
+    "file": "server.properties",
+    "format": "properties",
+    "initial": {
+      "motd": "Un serveur LANa",
+      "max-players": 6,
+      "server-port": 25565,
+      "difficulty": "normal",
+      "gamemode": "survival",
+      "view-distance": 8,
+      "simulation-distance": 6,
+      "online-mode": true
+    }
+  },
+  "fields": [
+    {"key": "motd", "label": "Message du serveur", "type": "text", "group": "Serveur", "default": "Un serveur LANa", "maxlen": 59},
+    {"key": "max-players", "label": "Joueurs maximum", "type": "int", "min": 1, "max": 100, "default": 6, "group": "Serveur"},
+    {"key": "server-port", "label": "Port", "type": "int", "min": 1024, "max": 65535, "default": 25565, "group": "Serveur",
+     "hint": "Port TCP à ouvrir sur la box"},
+    {"key": "online-mode", "label": "Vérifier les comptes Minecraft", "type": "bool", "default": true, "group": "Serveur",
+     "hint": "Le désactiver permet des comptes non officiels, mais n'importe qui peut alors usurper un pseudo"},
+    {"key": "white-list", "label": "Liste blanche (joueurs autorisés seulement)", "type": "bool", "default": false, "group": "Serveur"},
+
+    {"key": "gamemode", "label": "Mode de jeu", "type": "enum", "options": ["survival", "creative", "adventure", "spectator"], "default": "survival", "group": "Jeu"},
+    {"key": "difficulty", "label": "Difficulté", "type": "enum", "options": ["peaceful", "easy", "normal", "hard"], "default": "normal", "group": "Jeu"},
+    {"key": "hardcore", "label": "Hardcore (mort définitive)", "type": "bool", "default": false, "group": "Jeu"},
+    {"key": "pvp", "label": "Combat entre joueurs", "type": "bool", "default": true, "group": "Jeu"},
+    {"key": "allow-flight", "label": "Autoriser le vol", "type": "bool", "default": false, "group": "Jeu"},
+    {"key": "allow-nether", "label": "Nether accessible", "type": "bool", "default": true, "group": "Jeu"},
+    {"key": "enable-command-block", "label": "Blocs de commande", "type": "bool", "default": false, "group": "Jeu"},
+    {"key": "player-idle-timeout", "label": "Expulser les joueurs inactifs après (min, 0 = jamais)", "type": "int", "min": 0, "max": 1440, "default": 0, "group": "Jeu"},
+
+    {"key": "spawn-monsters", "label": "Monstres", "type": "bool", "default": true, "group": "Monde"},
+    {"key": "spawn-animals", "label": "Animaux", "type": "bool", "default": true, "group": "Monde"},
+    {"key": "spawn-npcs", "label": "Villageois", "type": "bool", "default": true, "group": "Monde"},
+    {"key": "generate-structures", "label": "Structures (villages, donjons…)", "type": "bool", "default": true, "group": "Monde",
+     "hint": "S'applique à la création du monde"},
+    {"key": "spawn-protection", "label": "Rayon protégé autour du point d'apparition", "type": "int", "min": 0, "max": 100, "default": 16, "group": "Monde"},
+    {"key": "level-seed", "label": "Graine du monde", "type": "text", "required": false, "default": "", "maxlen": 60, "group": "Monde",
+     "hint": "S'applique seulement à la création d'un nouveau monde"},
+
+    {"key": "view-distance", "label": "Distance d'affichage (chunks)", "type": "int", "min": 3, "max": 32, "default": 8, "group": "Performances",
+     "hint": "Plus bas = plus léger. 6 à 8 conviennent aux vieilles machines"},
+    {"key": "simulation-distance", "label": "Distance de simulation (chunks)", "type": "int", "min": 3, "max": 32, "default": 6, "group": "Performances"},
+    {"key": "lana:memory_mb", "label": "Mémoire allouée à Java (Mo)", "type": "int", "min": 512, "max": 16384, "default": 1536, "group": "Performances",
+     "hint": "Laissez au moins 2 Go libres pour macOS. 1536 à 2048 suffisent pour quelques joueurs"}
+  ]
+}

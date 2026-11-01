@@ -1,6 +1,8 @@
 """Détection de la machine et verdict de compatibilité d'un jeu."""
+import glob
 import os
 import platform
+import re
 import shutil
 import subprocess
 
@@ -11,21 +13,53 @@ TOOLS = {"wine": ["wine", "wine64"], "java": ["java"]}
 
 
 def find_tool(name):
-    """Chemin d'un outil (wine, java…) ou None."""
+    """Chemin d'un outil (wine, java…) ou None. Pour java : le plus récent trouvé."""
+    if name == "java":
+        return find_java(0)
     search = os.pathsep.join(paths.TOOL_DIRS + [os.environ.get("PATH", "")])
     for exe in TOOLS.get(name, [name]):
         found = shutil.which(exe, path=search)
-        if found and (name != "java" or _java_works(found)):
+        if found:
             return found
     return None
 
 
-def _java_works(path):
-    """/usr/bin/java existe toujours sur macOS, même sans Java : on vérifie qu'il s'exécute."""
+def java_major(path):
+    """Version majeure d'un Java (21, 25…), ou None s'il ne s'exécute pas.
+
+    /usr/bin/java existe toujours sur macOS, même sans Java installé : on l'exécute pour le savoir.
+    """
     try:
-        return subprocess.run([path, "-version"], capture_output=True, timeout=15).returncode == 0
+        proc = subprocess.run([path, "-version"], capture_output=True, text=True, timeout=20)
     except (OSError, subprocess.SubprocessError):
-        return False
+        return None
+    return parse_java_major(proc.stderr + proc.stdout) if proc.returncode == 0 else None
+
+
+def parse_java_major(text):
+    match = re.search(r'version "(\d+)(?:\.(\d+))?', text)
+    if not match:
+        return None
+    major, minor = int(match.group(1)), match.group(2)
+    return int(minor) if major == 1 and minor else major   # "1.8.0" désigne Java 8
+
+
+def java_candidates():
+    """Exécutables java possibles : JRE téléchargés par LANa, puis Java du système."""
+    found = sorted(glob.glob(os.path.join(paths.TOOLS_DIR, "java", "*", "Contents", "Home", "bin", "java")))
+    search = os.pathsep.join(paths.TOOL_DIRS + [os.environ.get("PATH", "")])
+    system = shutil.which("java", path=search)
+    return found + ([system] if system else [])
+
+
+def find_java(min_major):
+    """Un Java d'au moins `min_major` (le plus récent), ou None."""
+    best = None
+    for path in java_candidates():
+        major = java_major(path)
+        if major is not None and major >= min_major and (best is None or major > best[0]):
+            best = (major, path)
+    return best[1] if best else None
 
 
 def _sysctl(key):
@@ -86,6 +120,9 @@ def verdict(requirements, needs, machine):
         raise_to("bad")
         messages.append("Espace disque insuffisant : %s Go libres, environ %s Go nécessaires." % (machine["disk_free_gb"], need_disk))
     missing = [t for t in needs if not machine["tools"].get(t)]
+    if "java" in missing:
+        messages.append("Java sera téléchargé automatiquement (environ 50 Mo), sans toucher au système.")
+        missing.remove("java")
     if missing:
         raise_to("warn")
         messages.append("Outil à installer : %s." % ", ".join(missing))

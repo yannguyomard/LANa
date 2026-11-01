@@ -18,7 +18,7 @@ enregistré dans `~/LANa/auth.json`. Les serveurs installés vivent dans `~/LANa
 
 - **Wine** pour les serveurs Windows (Enshrouded, et plus tard Palworld, V Rising, Sons of the Forest).
   Installation conseillée : MacPorts `sudo port install wine-stable` ou Homebrew `brew install --cask wine-stable`.
-- **Java** pour Minecraft (à venir).
+- **Java** pour Minecraft : rien à installer. Si la machine n'a pas le Java exigé par la version de Minecraft, LANa télécharge un JRE portable (Eclipse Temurin, ~50 Mo) dans `~/LANa/tools/java`, sans toucher au système.
 
 LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d'installer.
 
@@ -27,7 +27,7 @@ LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d
 | Jeu | État |
 |---|---|
 | Enshrouded | disponible, installation et administration complètes |
-| Minecraft | prochaine étape |
+| Minecraft (Java) | disponible : dernière version stable de Mojang, mémoire de Java réglable, import de mondes `.zip` |
 | Sons of the Forest, V Rising, Palworld | à venir (Windows via Wine ; Palworld demande beaucoup de RAM) |
 
 ## Sauvegardes
@@ -44,15 +44,18 @@ Pour tous les jeux, depuis la page d'un serveur :
 
 Un jeu est un fichier `games/<id>.json`, sans code Python. Il décrit :
 
-- `install` : comment l'installer (`steamcmd` avec `appid`, `platform`, `check_file`) ;
+- `install` : comment l'installer (`steamcmd` avec `appid`, `platform`, `check_file` ; ou `mojang` pour Minecraft) ;
+- `eula` : contrat de licence à faire accepter explicitement par l'utilisateur (`url`, `label`, fichier à écrire). LANa n'accepte jamais un contrat à sa place ;
 - `run` : le runtime (`wine`, `java` ou `native`), la commande et le dossier de lancement ;
 - `requirements` : RAM minimale et recommandée, disque, note affichée à l'utilisateur ;
 - `ports`, `connect`, `savegame` (dossier sauvegardé) ;
 - `save_import` : formats de fichier propres au jeu acceptés à l'import (`extensions`, `magic` = premiers octets attendus, `target` = nom du fichier dans le dossier de sauvegarde) ;
-- `config` : fichier, format, et config `initial` (le jeton `"{random}"` devient un mot de passe aléatoire) ;
+- `world_zip` : accepte l'import de mondes `.zip` (`marker` = fichier qui prouve que c'est un monde, ex. `level.dat`) ;
+- `config` : fichier, format (`json` ou `properties`), et config `initial` (le jeton `"{random}"` devient un mot de passe aléatoire) ;
 - `fields` : les paramètres éditables. Types : `text`, `int`, `float`, `bool`, `enum`, `tags`,
   `minutes_ns` (minutes dans l'interface, nanosecondes dans le fichier) et `collection` (liste d'éléments).
-  `key` est un chemin pointé dans le fichier de config.
+  `key` est un chemin pointé dans le fichier de config (nom entier de la propriété pour `.properties`).
+  Une clé qui commence par `lana:` est un réglage de LANa (ex. `lana:memory_mb`), gardé hors du fichier du jeu et utilisable dans la commande de lancement (`{memory_mb}`).
 
 `games/enshrouded.json` sert de modèle.
 

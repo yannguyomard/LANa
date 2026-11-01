@@ -15,7 +15,9 @@ _MISSING = object()
 
 # ---------- chemins pointés ----------
 
-def get_path(data, path, default=_MISSING):
+def get_path(data, path, default=_MISSING, flat=False):
+    if flat:
+        return data.get(path, default)
     cur = data
     for part in path.split("."):
         if not isinstance(cur, dict) or part not in cur:
@@ -24,7 +26,10 @@ def get_path(data, path, default=_MISSING):
     return cur
 
 
-def set_path(data, path, value):
+def set_path(data, path, value, flat=False):
+    if flat:
+        data[path] = value
+        return
     parts = path.split(".")
     cur = data
     for part in parts[:-1]:
@@ -36,21 +41,77 @@ def set_path(data, path, value):
 
 # ---------- fichier (pilotes de format) ----------
 
+def is_flat(game):
+    """Les fichiers .properties n'ont pas de sections : la clé entière est le nom de la propriété."""
+    return game["config"]["format"] == "properties"
+
+
+def _config_path(game, root):
+    return os.path.join(root, game["config"]["file"])
+
+
+def _coerce(field, text):
+    """Texte d'un fichier .properties -> valeur typée selon le champ."""
+    t = field["type"]
+    try:
+        if t == "bool":
+            return text.strip().lower() == "true"
+        if t == "int":
+            return int(text)
+        if t == "float":
+            return float(text)
+    except ValueError:
+        return field.get("default")
+    return text
+
+
+def _stringify(value):
+    return str(value).lower() if isinstance(value, bool) else str(value)
+
+
 def read_file(game, root):
-    path = os.path.join(root, game["config"]["file"])
+    path = _config_path(game, root)
     if not os.path.exists(path):
         return {}
+    if not is_flat(game):
+        with open(path, encoding="utf-8") as fh:
+            return json.load(fh)
+    props = {}
     with open(path, encoding="utf-8") as fh:
-        return json.load(fh)
+        for line in fh:
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                key, _, value = line.partition("=")
+                props[key.strip()] = value
+    fields = {f["key"]: f for f in game["fields"]}
+    return {k: _coerce(fields[k], v) if k in fields else v for k, v in props.items()}
 
 
 def write_file(game, root, data):
-    path = os.path.join(root, game["config"]["file"])
+    path = _config_path(game, root)
     if os.path.exists(path):
         shutil.copy2(path, path + ".bak")
     tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(data, fh, indent=2, ensure_ascii=False)
+    if not is_flat(game):
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, indent=2, ensure_ascii=False)
+    else:
+        # On garde l'ordre et les commentaires du fichier existant ; les nouvelles clés vont à la fin.
+        lines = []
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as fh:
+                lines = fh.read().splitlines()
+        pending = dict(data)
+        out = []
+        for line in lines:
+            key = line.partition("=")[0].strip()
+            if line.strip() and not line.lstrip().startswith("#") and "=" in line and key in pending:
+                out.append("%s=%s" % (key, _stringify(pending.pop(key))))
+            else:
+                out.append(line)
+        out += ["%s=%s" % (k, _stringify(v)) for k, v in pending.items()]
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write("\n".join(out) + "\n")
     os.replace(tmp, path)
 
 
@@ -84,6 +145,8 @@ def _from_ui_value(field, value):
         return value
     if t == "text":
         value = str(value).strip()
+        if any(c in value for c in "\r\n\x00"):
+            raise ValueError("%s : les sauts de ligne ne sont pas permis" % label)
         if field.get("required", True) and not value:
             raise ValueError("%s : ne peut pas être vide" % label)
         if len(value) > field.get("maxlen", 200):
@@ -121,8 +184,9 @@ def _default_ui(field):
 def to_ui(game, data):
     """Valeurs du fichier au format de l'interface, avec les défauts du jeu pour les clés absentes."""
     out = {}
+    flat = is_flat(game)
     for field in game["fields"]:
-        stored = get_path(data, field["key"])
+        stored = get_path(data, field["key"], flat=flat)
         if field["type"] == "collection":
             items = [] if stored is _MISSING else stored
             out[field["key"]] = [
@@ -140,12 +204,13 @@ def to_ui(game, data):
 def apply_ui(game, data, values):
     """Applique les valeurs de l'interface sur une copie de `data` ; ValueError si invalide."""
     data = copy.deepcopy(data)
+    flat = is_flat(game)
     for field in game["fields"]:
         key = field["key"]
         if key not in values:
             continue
         if field["type"] != "collection":
-            set_path(data, key, _from_ui_value(field, values[key]))
+            set_path(data, key, _from_ui_value(field, values[key]), flat=flat)
             continue
         items = values[key]
         if not isinstance(items, list) or len(items) < field.get("min_items", 0):
@@ -158,5 +223,5 @@ def apply_ui(game, data, values):
             seen = [it[unique] for it in built]
             if len(set(seen)) != len(seen):
                 raise ValueError("%s : « %s » doit être différent pour chaque entrée" % (field["label"], unique))
-        set_path(data, key, built)
+        set_path(data, key, built, flat=flat)
     return data

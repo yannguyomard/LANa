@@ -91,9 +91,21 @@ class MachineTests(unittest.TestCase):
         self.assertEqual(machine.verdict({"ram_gb_min": 2, "ram_gb_recommended": 4, "disk_gb": 500}, [], self.base)["level"], "bad")
 
     def test_missing_tool_is_reported(self):
-        v = machine.verdict({"ram_gb_min": 1, "ram_gb_recommended": 1, "disk_gb": 1}, ["java"], self.base)
-        self.assertEqual(v["missing"], ["java"])
+        v = machine.verdict({"ram_gb_min": 1, "ram_gb_recommended": 1, "disk_gb": 1}, ["wine"], dict(self.base, tools={"wine": None, "java": None}))
+        self.assertEqual(v["missing"], ["wine"])
         self.assertEqual(v["level"], "warn")
+
+    def test_missing_java_is_not_a_problem_because_lana_downloads_it(self):
+        v = machine.verdict({"ram_gb_min": 1, "ram_gb_recommended": 1, "disk_gb": 1}, ["java"], self.base)
+        self.assertEqual(v["level"], "ok")
+        self.assertEqual(v["missing"], [])
+        self.assertTrue(any("Java" in m for m in v["messages"]))
+
+    def test_java_version_parsing(self):
+        self.assertEqual(machine.parse_java_major('openjdk version "21.0.13" 2026-10-21'), 21)
+        self.assertEqual(machine.parse_java_major('openjdk version "25" 2026-09-16'), 25)
+        self.assertEqual(machine.parse_java_major('java version "1.8.0_392"'), 8)
+        self.assertIsNone(machine.parse_java_major("Unable to locate a Java Runtime."))
 
 
 class InstanceLifecycleTests(unittest.TestCase):
@@ -258,6 +270,167 @@ class ExportImportTests(unittest.TestCase):
         inst.restore(oldest)  # l'archivage préalable ne doit pas supprimer `oldest` avant lecture
         self.assertEqual(read(self.world(inst)), "first")
         self.assertLessEqual(len(inst.backups()), instances.KEEP_BACKUPS)
+
+
+PROPS = {
+    "id": "fakeprops", "name": "Faux Minecraft",
+    "install": {"type": "none"},
+    "eula": {"label": "CLUF", "url": "https://example.test/eula", "file": "eula.txt", "content": "eula=true\n"},
+    "run": {"runtime": "native", "command": ["sleep", "300"], "cwd": "."},
+    "requirements": {"ram_gb_min": 1, "ram_gb_recommended": 1, "disk_gb": 1},
+    "savegame": "world",
+    "world_zip": {"label": "Monde (.zip)", "marker": "level.dat"},
+    "connect": "{lan_ip}:{server-port}",
+    "config": {"file": "server.properties", "format": "properties", "initial": {"motd": "hi", "server-port": 25565}},
+    "fields": [
+        {"key": "motd", "label": "Message", "type": "text", "default": "x"},
+        {"key": "server-port", "label": "Port", "type": "int", "min": 1024, "max": 65535, "default": 25565},
+        {"key": "pvp", "label": "PvP", "type": "bool", "default": True},
+        {"key": "rcon.port", "label": "Port rcon", "type": "int", "min": 1, "max": 65535, "default": 25575},
+        {"key": "lana:memory_mb", "label": "Mémoire", "type": "int", "min": 512, "max": 16384, "default": 1536},
+    ],
+}
+games._cache["fakeprops"] = PROPS
+
+
+class PropertiesTests(unittest.TestCase):
+    def make(self, text="#Minecraft server properties\nmotd=Old\npvp=false\nextra-key=keep me\n"):
+        inst = instances.Instance.create("fakeprops")
+        os.makedirs(inst.server_dir)
+        meta = inst.meta()
+        meta["installed"] = True
+        write(inst.meta_path, json.dumps(meta))
+        write(os.path.join(inst.server_dir, "server.properties"), text)
+        return inst
+
+    def props(self, inst):
+        return read(os.path.join(inst.server_dir, "server.properties"))
+
+    def test_read_is_typed_and_falls_back_to_defaults(self):
+        ui = self.make().read_config()
+        self.assertEqual(ui["motd"], "Old")
+        self.assertIs(ui["pvp"], False)
+        self.assertEqual(ui["server-port"], 25565)      # absent du fichier : défaut du jeu
+        self.assertEqual(ui["rcon.port"], 25575)        # une clé avec un point reste une clé
+        self.assertEqual(ui["lana:memory_mb"], 1536)
+
+    def test_write_keeps_comments_order_and_unknown_keys(self):
+        inst = self.make()
+        values = inst.read_config()
+        values.update({"motd": "New", "pvp": True, "rcon.port": 30000})
+        inst.write_config(values)
+        text = self.props(inst)
+        self.assertTrue(text.startswith("#Minecraft server properties\nmotd=New\npvp=true\nextra-key=keep me\n"))
+        self.assertIn("rcon.port=30000", text)
+        self.assertEqual(inst.read_config()["rcon.port"], 30000)
+
+    def test_lana_settings_stay_out_of_the_game_file(self):
+        inst = self.make()
+        values = inst.read_config()
+        values["lana:memory_mb"] = 2048
+        inst.write_config(values)
+        self.assertNotIn("lana", self.props(inst))
+        self.assertEqual(inst.meta()["settings"], {"memory_mb": 2048})
+        self.assertEqual(inst.read_config()["lana:memory_mb"], 2048)
+
+    def test_newline_in_text_cannot_inject_a_property(self):
+        inst = self.make()
+        values = inst.read_config()
+        values["motd"] = "hello\nenable-rcon=true"
+        with self.assertRaises(ValueError):
+            inst.write_config(values)
+        self.assertNotIn("enable-rcon", self.props(inst))
+
+    def test_minecraft_definition_is_consistent(self):
+        game = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "games", "minecraft.json"), encoding="utf-8"))
+        keys = [f["key"] for f in game["fields"]]
+        self.assertEqual(len(keys), len(set(keys)))
+        ui = config.to_ui(game, config.initial_config(game))
+        config.apply_ui(game, config.initial_config(game), ui)
+        for port in game["ports"]:
+            self.assertIn(port["from"], keys)
+        self.assertEqual(game["connect"].format(lan_ip="1.2.3.4", **{"server-port": 25565}), "1.2.3.4:25565")
+        self.assertTrue(game["eula"]["url"].startswith("https://"))
+
+
+class EulaTests(unittest.TestCase):
+    def test_install_refuses_without_explicit_acceptance(self):
+        inst = instances.Instance.create("fakeprops")
+        for accepted in (False, None):
+            with self.assertRaises(instances.InstanceError) as ctx:
+                inst.install(accept_eula=bool(accepted))
+            self.assertIn("contrat de licence", str(ctx.exception))
+        self.assertFalse(os.path.exists(os.path.join(inst.server_dir, "eula.txt")))
+
+
+class ZipWorldImportTests(unittest.TestCase):
+    def make(self):
+        inst = instances.Instance.create("fakeprops")
+        os.makedirs(inst.server_dir)
+        meta = inst.meta()
+        meta["installed"] = True
+        write(inst.meta_path, json.dumps(meta))
+        write(os.path.join(inst.server_dir, "world", "level.dat"), "old")
+        return inst
+
+    def zipfile(self, entries, symlink=None):
+        import zipfile
+        path = os.path.join(_home, "w.zip")
+        with zipfile.ZipFile(path, "w") as zf:
+            for name, data in entries.items():
+                zf.writestr(name, data)
+            if symlink:
+                info = zipfile.ZipInfo(symlink)
+                info.external_attr = 0o120777 << 16
+                zf.writestr(info, "/etc/passwd")
+        return path
+
+    def test_world_at_zip_root(self):
+        inst = self.make()
+        inst.import_save(self.zipfile({"level.dat": "new", "region/r.0.0.mca": "R"}), "mon monde.zip")
+        self.assertEqual(read(os.path.join(inst.server_dir, "world", "level.dat")), "new")
+        self.assertEqual(read(os.path.join(inst.server_dir, "world", "region", "r.0.0.mca")), "R")
+        self.assertTrue(any("avant-import" in b["name"] for b in inst.backups()))
+
+    def test_world_inside_one_folder_with_macos_junk(self):
+        inst = self.make()
+        inst.import_save(self.zipfile({"MonMonde/level.dat": "new", "MonMonde/data/x": "1",
+                                       "__MACOSX/MonMonde/._level.dat": "junk", "MonMonde/.DS_Store": "junk"}), "w.zip")
+        self.assertEqual(read(os.path.join(inst.server_dir, "world", "level.dat")), "new")
+        self.assertFalse(os.path.exists(os.path.join(inst.server_dir, "world", "MonMonde")))
+        self.assertFalse(os.path.exists(os.path.join(inst.server_dir, "world", ".DS_Store")))
+
+    def test_bad_zips_leave_the_world_untouched(self):
+        inst = self.make()
+        cases = {
+            "pas un monde": self.zipfile({"readme.txt": "x"}),
+            "traversée": self.zipfile({"level.dat": "x", "../evil": "x"}),
+            "chemin absolu": self.zipfile({"level.dat": "x", "/evil": "x"}),
+            "hors du monde": self.zipfile({"A/level.dat": "x", "B/other": "x"}),
+            "lien": self.zipfile({"level.dat": "x"}, symlink="link"),
+        }
+        for label, path in cases.items():
+            with self.assertRaises(instances.InstanceError, msg=label):
+                inst.import_save(path, "w.zip")
+            self.assertEqual(read(os.path.join(inst.server_dir, "world", "level.dat")), "old", label)
+        with self.assertRaises(instances.InstanceError):
+            inst.import_save(self.tmp_garbage(), "w.zip")
+        self.assertEqual(inst.backups(), [])
+        self.assertFalse(os.path.exists(os.path.join(_home, "evil")))
+
+    def tmp_garbage(self):
+        path = os.path.join(_home, "garbage.zip")
+        write(path, b"not a zip", "wb")
+        return path
+
+    def test_zip_is_refused_for_games_without_world_zip(self):
+        inst = instances.Instance.create("fake")
+        os.makedirs(os.path.join(inst.server_dir, "save"))
+        meta = inst.meta()
+        meta["installed"] = True
+        write(inst.meta_path, json.dumps(meta))
+        with self.assertRaises(instances.InstanceError):
+            inst.import_save(self.zipfile({"level.dat": "x"}), "w.zip")
 
 
 if __name__ == "__main__":

@@ -7,11 +7,13 @@ import shutil
 import tarfile
 import threading
 import time
+import zipfile
 
 from . import config, games, jobs, machine, paths, runtime
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 KEEP_BACKUPS = 10
+LANA_PREFIX = "lana:"
 MAX_IMPORT_BYTES = 4 * 2**30   # taille maximale d'une sauvegarde importée, une fois décompressée
 _procs = {}      # id -> Popen, pour récupérer les processus enfants terminés
 _locks = {}      # id -> Lock, une opération de cycle de vie à la fois par serveur
@@ -48,6 +50,10 @@ class Instance:
             raise InstanceError("Serveur introuvable")
         with open(self.meta_path, encoding="utf-8") as fh:
             return json.load(fh)
+
+    def _save_meta(self, meta):
+        with open(self.meta_path, "w", encoding="utf-8") as fh:
+            json.dump(meta, fh)
 
     @property
     def game(self):
@@ -98,13 +104,21 @@ class Instance:
                        "created": time.time()}, fh)
         return inst
 
-    def install(self):
-        """Lance l'installation en arrière-plan ; retourne la tâche."""
+    def install(self, accept_eula=False):
+        """Lance l'installation en arrière-plan ; retourne la tâche.
+
+        Si le jeu impose un contrat de licence (`eula`), l'utilisateur doit l'avoir accepté explicitement :
+        LANa n'accepte jamais un contrat à sa place.
+        """
         game = self.game
+        eula = game.get("eula")
+        if eula and not accept_eula:
+            raise InstanceError("Vous devez accepter le contrat de licence : %s" % eula["url"])
         verdict = machine.verdict(game["requirements"], [], machine.detect())
         if verdict["level"] == "bad":
             raise InstanceError(" ".join(verdict["messages"]))
-        missing = [t for t in games.needs(game) if not machine.find_tool(t)]
+        # Java est téléchargé automatiquement si absent ; les autres outils doivent déjà être là.
+        missing = [t for t in games.needs(game) if t != "java" and not machine.find_tool(t)]
         if missing:
             raise InstanceError("Outil manquant : %s. Installez-le puis réessayez." % ", ".join(missing))
 
@@ -112,17 +126,25 @@ class Instance:
             spec = game["install"]
             if game["run"]["runtime"] == "wine":
                 runtime.init_prefix(self.prefix, job)
+            extra = {}
             if spec["type"] == "steamcmd":
                 runtime.steamcmd_install(game, self.server_dir, self.prefix, job)
+            elif spec["type"] == "mojang":
+                extra = runtime.mojang_install(game, self.server_dir, job)
+                job.log("Serveur Minecraft %s installé." % extra["version"])
             else:
                 raise RuntimeError("Type d'installation non géré : %s" % spec["type"])
             if not os.path.exists(os.path.join(self.server_dir, game["config"]["file"])):
                 config.write_file(game, self.server_dir, config.initial_config(game))
                 job.log("Configuration initiale créée.")
+            if eula:
+                with open(os.path.join(self.server_dir, eula["file"]), "w", encoding="utf-8") as fh:
+                    fh.write(eula["content"])
+                job.log("Contrat de licence accepté par l'utilisateur (%s)." % eula["url"])
             meta = self.meta()
+            meta.update(extra)
             meta["installed"] = True
-            with open(self.meta_path, "w", encoding="utf-8") as fh:
-                json.dump(meta, fh)
+            self._save_meta(meta)
             job.log("Installation terminée.")
 
         return jobs.start("Installation de %s" % game["name"], work)
@@ -135,7 +157,16 @@ class Instance:
                 raise InstanceError("Ce serveur n'est pas encore installé")
             if self.running():
                 raise InstanceError("Le serveur tourne déjà")
-            _procs[self.id] = runtime.start_process(self.game, self.server_dir, self.prefix, self.log_path)
+            settings = self._run_settings()
+            ram = machine.detect()["ram_gb"]
+            if ram and settings.get("memory_mb", 0) / 1024 > ram - 1.5:
+                raise InstanceError("Trop de mémoire allouée à Java (%s Mo) pour %s Go de RAM : laissez au moins 1,5 Go à macOS."
+                                    % (settings["memory_mb"], ram))
+            try:
+                _procs[self.id] = runtime.start_process(self.game, self.server_dir, self.prefix, self.log_path,
+                                                        settings=settings, java_min=self.meta().get("java_min", 0))
+            except RuntimeError as ex:
+                raise InstanceError(str(ex))
             self._set_pgid(_procs[self.id].pid)
 
     def stop(self, backup=True):
@@ -149,14 +180,29 @@ class Instance:
 
     # ---------- config ----------
 
+    # Les champs dont la clé commence par "lana:" sont des réglages de LANa (ex. mémoire de Java),
+    # gardés dans instance.json et non dans le fichier de config du jeu.
+
+    def _run_settings(self):
+        defaults = {f["key"][len(LANA_PREFIX):]: f["default"] for f in self.game["fields"] if f["key"].startswith(LANA_PREFIX)}
+        defaults.update(self.meta().get("settings", {}))
+        return defaults
+
     def read_config(self):
         game = self.game
-        return config.to_ui(game, config.read_file(game, self.server_dir))
+        data = config.read_file(game, self.server_dir)
+        for key, value in self._run_settings().items():
+            data[LANA_PREFIX + key] = value
+        return config.to_ui(game, data)
 
     def write_config(self, values):
         game = self.game
-        current = config.read_file(game, self.server_dir)
-        config.write_file(game, self.server_dir, config.apply_ui(game, current, values))
+        updated = config.apply_ui(game, config.read_file(game, self.server_dir), values)
+        settings = {k[len(LANA_PREFIX):]: updated.pop(k) for k in [k for k in updated if k.startswith(LANA_PREFIX)]}
+        config.write_file(game, self.server_dir, updated)
+        meta = self.meta()
+        meta["settings"] = settings
+        self._save_meta(meta)
 
     # ---------- journal ----------
 
@@ -212,6 +258,8 @@ class Instance:
     def import_formats(self):
         """Formats de fichier acceptés à l'import : celui du jeu (s'il en a un) et l'archive LANa."""
         formats = [{"label": f["label"], "extensions": f["extensions"]} for f in self.game.get("save_import", [])]
+        if self.game.get("world_zip"):
+            formats.append({"label": self.game["world_zip"]["label"], "extensions": [".zip"]})
         formats.append({"label": "Archive LANa", "extensions": [".tar.gz"]})
         return formats
 
@@ -255,6 +303,64 @@ class Instance:
         if total > MAX_IMPORT_BYTES:
             raise InstanceError("Archive trop volumineuse une fois décompressée")
 
+    @staticmethod
+    def _zip_entries(zf):
+        """Entrées utiles d'un zip, sans les fichiers parasites que macOS ajoute."""
+        return [i for i in zf.infolist() if not i.filename.startswith("__MACOSX/") and not i.filename.endswith(".DS_Store")]
+
+    def _check_zip(self, path, marker):
+        """Valide un monde en .zip et retourne le préfixe à retirer (le dossier qui contient `marker`).
+
+        Même exigences que pour les archives LANa : aucun lien, aucun chemin hors du dossier, taille bornée.
+        """
+        try:
+            zf = zipfile.ZipFile(path)
+        except (zipfile.BadZipFile, OSError):
+            raise InstanceError("Fichier .zip illisible ou corrompu")
+        with zf:
+            entries = self._zip_entries(zf)
+            names = [i.filename for i in entries]
+            tops = [n[:-len(marker)] for n in names if n == marker or (n.endswith("/" + marker) and n.count("/") == 1)]
+            if not tops:
+                raise InstanceError("Ce .zip ne ressemble pas à un monde : « %s » est introuvable à sa racine" % marker)
+            top = tops[0]
+            total = 0
+            for info in entries:
+                parts = info.filename.split("/")
+                if info.filename.startswith("/") or ".." in parts:
+                    raise InstanceError("Archive invalide : « %s »" % info.filename)
+                if (info.external_attr >> 16) & 0o170000 == 0o120000:
+                    raise InstanceError("Archive invalide : « %s » est un lien" % info.filename)
+                if not info.filename.startswith(top):
+                    raise InstanceError("Archive invalide : « %s » est hors du monde" % info.filename)
+                total += info.file_size
+            if total > MAX_IMPORT_BYTES:
+                raise InstanceError("Archive trop volumineuse une fois décompressée")
+        return top
+
+    def _extract_zip(self, path, top):
+        dest = self._save_path()
+        if os.path.isdir(dest):
+            shutil.rmtree(dest)
+        elif os.path.exists(dest):
+            os.remove(dest)
+        os.makedirs(dest)
+        base = os.path.realpath(dest)
+        with zipfile.ZipFile(path) as zf:
+            for info in self._zip_entries(zf):
+                rel = info.filename[len(top):]
+                if not rel:
+                    continue
+                target = os.path.realpath(os.path.join(base, rel))
+                if target != base and not target.startswith(base + os.sep):
+                    raise InstanceError("Archive invalide : « %s »" % info.filename)
+                if info.is_dir():
+                    os.makedirs(target, exist_ok=True)
+                    continue
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                with zf.open(info) as src, open(target, "wb") as out:
+                    shutil.copyfileobj(src, out)
+
     def _extract_archive(self, path):
         dest = self._save_path()
         if os.path.isdir(dest):
@@ -272,6 +378,10 @@ class Instance:
                 self._check_archive(tmp_path)
                 self._replace_save(lambda: self._extract_archive(tmp_path))
                 return "Archive importée"
+            if name.endswith(".zip") and self.game.get("world_zip"):
+                top = self._check_zip(tmp_path, self.game["world_zip"]["marker"])
+                self._replace_save(lambda: self._extract_zip(tmp_path, top))
+                return "Monde importé"
             for fmt in self.game.get("save_import", []):
                 if not name.endswith(tuple(fmt["extensions"])):
                     continue

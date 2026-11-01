@@ -1,7 +1,10 @@
 """Exécution des serveurs : Wine, SteamCMD, lancement et arrêt de processus."""
+import hashlib
+import json
 import os
 import signal
 import subprocess
+import tarfile
 import time
 import urllib.request
 import zipfile
@@ -9,6 +12,95 @@ import zipfile
 from . import machine, paths
 
 STEAMCMD_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
+MOJANG_MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+ADOPTIUM_JRE = "https://api.adoptium.net/v3/binary/latest/%d/ga/mac/x64/jre/hotspot/normal/eclipse"
+USER_AGENT = "LANa"
+
+
+def fetch_json(url):
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.load(resp)
+
+
+def download(url, dest, job, label, sha1=None):
+    """Télécharge url vers dest (par blocs, avec progression) et vérifie l'empreinte SHA-1 si fournie."""
+    job.log("Téléchargement : %s…" % label)
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    digest, done, last_pct = hashlib.sha1(), 0, -1
+    tmp = dest + ".part"
+    with urllib.request.urlopen(req, timeout=60) as resp, open(tmp, "wb") as out:
+        total = int(resp.headers.get("Content-Length", 0))
+        while True:
+            chunk = resp.read(1 << 20)
+            if not chunk:
+                break
+            out.write(chunk)
+            digest.update(chunk)
+            done += len(chunk)
+            if total and done * 10 // total != last_pct:
+                last_pct = done * 10 // total
+                job.log("  %d %%" % (last_pct * 10))
+    if sha1 and digest.hexdigest() != sha1:
+        os.remove(tmp)
+        raise RuntimeError("Empreinte incorrecte pour %s : téléchargement corrompu ou altéré." % label)
+    os.replace(tmp, dest)
+
+
+def _safe_extract(tar_path, dest):
+    """Extrait une archive en refusant tout membre qui sortirait de dest (liens compris)."""
+    base = os.path.realpath(dest)
+    with tarfile.open(tar_path) as tar:
+        for m in tar.getmembers():
+            target = os.path.realpath(os.path.join(base, m.name))
+            if target != base and not target.startswith(base + os.sep):
+                raise RuntimeError("Archive invalide : %s" % m.name)
+            if m.issym() or m.islnk():
+                link = os.path.realpath(os.path.join(os.path.dirname(target), m.linkname))
+                if not link.startswith(base + os.sep):
+                    raise RuntimeError("Archive invalide : lien vers l'extérieur (%s)" % m.name)
+        tar.extractall(base)
+
+
+def ensure_java(min_major, job):
+    """Chemin d'un Java >= min_major ; télécharge un JRE portable (Eclipse Temurin) dans ~/LANa si besoin."""
+    found = machine.find_java(min_major)
+    if found:
+        return found
+    job.log("Java %d introuvable : installation d'un JRE portable (Eclipse Temurin), sans toucher au système." % min_major)
+    folder = os.path.join(paths.TOOLS_DIR, "java")
+    os.makedirs(folder, exist_ok=True)
+    archive = os.path.join(folder, "jre-%d.tar.gz" % min_major)
+    download(ADOPTIUM_JRE % min_major, archive, job, "Java %d (environ 50 Mo)" % min_major)
+    _safe_extract(archive, folder)
+    os.remove(archive)
+    found = machine.find_java(min_major)
+    if not found:
+        raise RuntimeError("Le JRE téléchargé ne s'exécute pas sur cette machine.")
+    return found
+
+
+def mojang_install(game, server_dir, job, version=None):
+    """Télécharge server.jar (Mojang) pour `version` (dernière version stable par défaut).
+
+    Retourne {"version": ..., "java_min": ...}. L'acceptation du CLUF est gérée par l'appelant.
+    """
+    spec = game["install"]
+    manifest = fetch_json(MOJANG_MANIFEST)
+    version = version or manifest["latest"]["release"]
+    entry = next((v for v in manifest["versions"] if v["id"] == version), None)
+    if not entry:
+        raise RuntimeError("Version Minecraft inconnue : %s" % version)
+    meta = fetch_json(entry["url"])
+    server = meta["downloads"].get("server")
+    if not server:
+        raise RuntimeError("Mojang ne propose pas de serveur pour la version %s." % version)
+    java_min = meta.get("javaVersion", {}).get("majorVersion", 8)
+    ensure_java(java_min, job)
+    os.makedirs(server_dir, exist_ok=True)
+    download(server["url"], os.path.join(server_dir, spec["check_file"]), job,
+             "serveur Minecraft %s (%d Mo)" % (version, server["size"] // 2**20), sha1=server["sha1"])
+    return {"version": version, "java_min": java_min}
 
 
 def wine_env(prefix):
@@ -86,16 +178,22 @@ def steamcmd_install(game, server_dir, prefix, job):
     raise RuntimeError("SteamCMD n'a pas installé %s après 3 essais." % spec["check_file"])
 
 
-def start_process(game, server_dir, prefix, log_path):
-    """Lance le serveur dans son propre groupe de processus ; retourne le Popen."""
+def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0):
+    """Lance le serveur dans son propre groupe de processus ; retourne le Popen.
+
+    `settings` remplit les {jetons} de la commande (ex. {memory_mb} pour la mémoire de Java).
+    """
     run = game["run"]
-    cmd = list(run["command"])
+    cmd = [a.format(**(settings or {})) if "{" in a else a for a in run["command"]]
     env = dict(os.environ)
     if run["runtime"] == "wine":
         cmd = [machine.find_tool("wine")] + cmd
         env = wine_env(prefix)
     elif run["runtime"] == "java":
-        cmd = [machine.find_tool("java")] + cmd
+        java = machine.find_java(java_min)
+        if not java:
+            raise RuntimeError("Java %d ou plus récent est requis." % java_min)
+        cmd = [java] + cmd
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     log = open(log_path, "ab")
     log.write(("\n===== Démarrage %s =====\n" % time.strftime("%Y-%m-%d %H:%M:%S")).encode())
