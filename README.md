@@ -37,7 +37,7 @@ LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d
 
 ### Jeux ajoutés, à tester
 
-Les 20 jeux suivants sont décrits d'après la documentation officielle et les données de Steam (identifiants et
+Les jeux suivants sont décrits d'après la documentation officielle et les données de Steam (identifiants et
 exécutables vérifiés à la source), **sans avoir encore été essayés en conditions réelles** : l'interface les marque
 « à tester ». Sous macOS et Linux, les serveurs Windows tournent sous Wine (étiquette « Wine »), sans garantie.
 
@@ -52,7 +52,7 @@ exécutables vérifiés à la source), **sans avoir encore été essayés en con
 | ARK: Survival Evolved | SteamCMD (376030) | `GameUserSettings.ini` | carte, ports et joueurs au lancement |
 | ARK: Survival Ascended | SteamCMD (2430930) | `GameUserSettings.ini` | Windows seulement, 12 Go de RAM minimum |
 | Rust | SteamCMD (258550) | `server.cfg` + lancement | carte, graine, taille et RCON au lancement |
-| Project Zomboid | SteamCMD (380870) | `Zomboid/Server/lana.ini` | mot de passe administrateur obligatoire |
+| Project Zomboid | SteamCMD (380870) | `Zomboid/Server/lana.ini` | **démarrage vérifié sur Mac Intel (Wine)** ; mot de passe administrateur obligatoire ; mémoire de Java réglable (3 Go par défaut, le script officiel en réserve 16) |
 | Valheim | SteamCMD (896660) | lancement | mot de passe d'au moins 5 caractères |
 | Unturned | SteamCMD (1110390) | `Commands.dat` | jeton GSLT pour un serveur Internet |
 | 7 Days to Die | SteamCMD (294420) | `serverconfig.xml` | |

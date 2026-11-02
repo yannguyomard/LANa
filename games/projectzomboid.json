@@ -12,7 +12,21 @@
   "run": {
     "runtime": "wine",
     "command": [
-      "ProjectZomboid64.exe",
+      "jre64\\bin\\java.exe",
+      "-Djava.awt.headless=true",
+      "-Dzomboid.steam=1",
+      "-Dzomboid.znetlog=1",
+      "-XX:+UseG1GC",
+      "-XX:-CreateCoredumpOnCrash",
+      "-XX:-OmitStackTraceInFastThrow",
+      "-Xms{memory_mb}m",
+      "-Xmx{memory_mb}m",
+      "-Djava.library.path=natives/",
+      "-cp",
+      "java/;java/projectzomboid.jar",
+      "zombie.network.GameServer",
+      "-statistic",
+      "0",
       "-cachedir=Zomboid",
       "-servername",
       "lana",
@@ -24,7 +38,21 @@
     "linux": {
       "runtime": "native",
       "command": [
-        "./ProjectZomboid64",
+        "./jre64/bin/java",
+        "-Djava.awt.headless=true",
+        "-Dzomboid.steam=1",
+        "-Dzomboid.znetlog=1",
+        "-XX:+UseG1GC",
+        "-XX:-CreateCoredumpOnCrash",
+        "-XX:-OmitStackTraceInFastThrow",
+        "-Xms{memory_mb}m",
+        "-Xmx{memory_mb}m",
+        "-Djava.library.path=natives/",
+        "-cp",
+        "java/:java/projectzomboid.jar",
+        "zombie.network.GameServer",
+        "-statistic",
+        "0",
         "-cachedir=Zomboid",
         "-servername",
         "lana",
@@ -149,7 +177,16 @@
       "maxlen": 64,
       "pattern": "^\\S+$",
       "hint": "Obligatoire : le serveur le demande au premier démarrage"
+    },
+    {
+      "key": "lana:memory_mb",
+      "label": "Mémoire allouée à Java (Mo)",
+      "type": "int",
+      "default": 3072,
+      "group": "Performances",
+      "min": 1024,
+      "max": 16384,
+      "hint": "Le script officiel réserve 16 Go ; 3 à 4 Go suffisent pour quelques joueurs. Laissez au moins 1,5 Go au système."
     }
-  ],
-  "untested": true
+  ]
 }
