@@ -113,3 +113,11 @@ games/            une définition JSON par jeu
 web/index.html    interface
 tests/            tests unitaires (aucun ne lance Wine)
 ```
+
+## Licence
+
+LANa est distribuée sous licence MIT (voir `LICENSE`). Elle ne couvre que le code de LANa : SteamCMD, Java (Eclipse Temurin)
+et les serveurs de jeu sont téléchargés chez l'utilisateur depuis leurs sources officielles et restent soumis à leurs propres conditions.
+
+LANa n'est affiliée à aucun éditeur des jeux cités (Keen Games, Pocketpair, Stunlock Studios, Endnight Games, Mojang/Microsoft) ni à Valve.
+Les noms des jeux sont des marques de leurs propriétaires.
