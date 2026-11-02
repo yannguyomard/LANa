@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _home = tempfile.mkdtemp(prefix="lana-test-")
 os.environ["LANA_HOME"] = _home
 
-from lana import config, games, instances, machine, runtime, system  # noqa: E402
+from lana import config, games, instances, machine, runtime, system, web  # noqa: E402
 
 FAKE = {
     "id": "fake", "name": "Faux jeu",
@@ -576,6 +576,21 @@ class ZipWorldImportTests(unittest.TestCase):
             inst.import_save(self.zipfile({"level.dat": "x"}), "w.zip")
 
 
+
+
+class WebPayloadTests(unittest.TestCase):
+    """Les réponses de l'API sont construites avec les vrais modules (un nom déplacé ailleurs casse ici)."""
+
+    def test_payloads_de_l_api(self):
+        self.assertTrue(web.games_payload())
+        inst = instances.Instance.create("fake")
+        self.addCleanup(shutil.rmtree, inst.dir, True)
+        os.makedirs(inst.server_dir)
+        config.write_initial(FAKE, inst.server_dir)
+        inst._save_meta(dict(inst.meta(), installed=True))
+        payload = web.instance_payload(inst)   # appelle aussi la détection de l'adresse locale
+        self.assertEqual(payload["id"], inst.id)
+        self.assertIn("connect", payload)
 
 
 class PlatformTests(unittest.TestCase):

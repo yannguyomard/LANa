@@ -9,7 +9,7 @@ import shutil
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, games, instances, jobs, machine, paths
+from . import __version__, games, instances, jobs, machine, paths, system
 from .instances import Instance, InstanceError
 
 ROUTE_INSTANCE = re.compile(r"^/api/instances/([a-z0-9-]+)(?:/([a-z-]+))?$")
@@ -50,7 +50,7 @@ def instance_payload(inst):
     if out["installed"]:
         values = inst.read_config()
         out["values"] = values
-        ip = machine.lan_ip()
+        ip = system.lan_ip()
         out["ports"] = [{"label": p["label"], "proto": p["proto"], "port": values[p["from"]] + p["offset"]}
                         for p in game.get("ports", [])]
         # Les clés à point ou à deux-points ne sont pas utilisables dans un format : réglages LANa sous leur nom court.
