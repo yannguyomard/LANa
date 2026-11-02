@@ -37,6 +37,23 @@ LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d
 
 ### Limite connue : sauvegarde à l'arrêt des serveurs Windows
 
+## Joueurs
+
+La page d'un serveur affiche les joueurs passés par lui : statut (en ligne depuis combien de temps, ou vu pour la dernière fois),
+première connexion, nombre de sessions, temps de jeu, puis des statistiques globales (joueurs différents, temps cumulé, session moyenne
+et plus longue, pic de joueurs simultanés, derniers événements). Un clic sur un joueur détaille sa fiche.
+
+LANa lit les connexions dans le journal du serveur (aucun mod ni RCON) et garde l'historique dans `players.json` de l'instance.
+Le suivi tourne tant que LANa tourne ; si LANa est fermé pendant que le serveur joue, les connexions sont rattrapées au retour
+depuis le journal (heures du jour seulement : au-delà de 24 h, les dates sont approximatives). Quand le serveur s'arrête, les sessions ouvertes sont fermées.
+
+| Jeu | Suivi | Statistiques en plus |
+|---|---|---|
+| Enshrouded | oui, format **vérifié sur un vrai journal** | — |
+| Minecraft | oui, format standard | morts, monstres tués, distance, blocs minés, sauts, progrès, temps de jeu du monde et records, y compris pour les joueurs passés avant LANa |
+| Palworld | oui, **format d'un modèle tiers, non vérifié** (avertissement affiché) | — |
+| V Rising, Sons of the Forest | **non** : format de journal inconnu, aucune source fiable | — |
+
 ## Systèmes
 
 | Système | État |

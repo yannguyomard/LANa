@@ -36,6 +36,15 @@
     }
   ],
   "connect": "{lan_ip}:{queryPort}",
+  "players": {
+    "verified": true,
+    "join": "^\\[\\w (?P<time>\\d\\d:\\d\\d:\\d\\d),\\d+\\] \\[server\\] Player '(?P<name>.+?)' logged in with Permissions:",
+    "leave": "^\\[\\w (?P<time>\\d\\d:\\d\\d:\\d\\d),\\d+\\] \\[server\\] Remove Player '(?P<name>.+?)'",
+    "sample": {
+      "join": "[I 07:53:38,191] [server] Player 'Verba Lanash' logged in with Permissions:",
+      "leave": "[I 08:07:09,454] [server] Remove Player 'Zajabel'"
+    }
+  },
   "savegame": "savegame",
   "save_import": [
     {
@@ -45,7 +54,7 @@
       "target": "world0.ksd"
     }
   ],
-  "log_file": null,
+  "log_file": "logs/enshrouded_server.log",
   "config": {
     "file": "enshrouded_server.json",
     "format": "json",

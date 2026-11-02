@@ -34,6 +34,16 @@
     }
   ],
   "connect": "{lan_ip}:{port}",
+  "players": {
+    "verified": false,
+    "note": "Format de journal tiré d'un modèle tiers (AMP), pas encore vérifié sur un serveur LANa avec de vrais joueurs.",
+    "join": "^(?:\\[(?P<date>[\\d-]+) (?P<time>[\\d:]+)\\] \\[LOG\\] )?(?P<name>.+) (?P<endpoint>\\S+) connected the server\\. \\(User id: (?P<id>[^)]+)\\)\\s*$",
+    "leave": "^(?:\\[(?P<date>[\\d-]+) (?P<time>[\\d:]+)\\] \\[LOG\\] )?(?P<name>.+) left the server\\. \\(User id: (?P<id>[^)]+)\\)\\s*$",
+    "sample": {
+      "join": "[2026-11-01 12:00:00] [LOG] Zajabel 192.168.1.20 connected the server. (User id: steam_76561198000000000)",
+      "leave": "[2026-11-01 12:30:00] [LOG] Zajabel left the server. (User id: steam_76561198000000000)"
+    }
+  },
   "savegame": "Pal/Saved/SaveGames",
   "config": {
     "file": "Pal/Saved/Config/WindowsServer/PalWorldSettings.ini",

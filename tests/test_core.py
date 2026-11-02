@@ -3,13 +3,14 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _home = tempfile.mkdtemp(prefix="lana-test-")
 os.environ["LANA_HOME"] = _home
 
-from lana import config, games, instances, machine, runtime, system, web  # noqa: E402
+from lana import config, games, instances, machine, players, runtime, system, web  # noqa: E402
 
 FAKE = {
     "id": "fake", "name": "Faux jeu",
@@ -576,6 +577,159 @@ class ZipWorldImportTests(unittest.TestCase):
             inst.import_save(self.zipfile({"level.dat": "x"}), "w.zip")
 
 
+
+
+PLAYERS_GAME = {
+    "id": "fakeplayers", "name": "Faux jeu multijoueur",
+    "install": {"type": "none"},
+    "run": {"runtime": "native", "command": [sys.executable, "-c", "import time; time.sleep(300)"], "cwd": "."},
+    "requirements": {"ram_gb_min": 1, "ram_gb_recommended": 1, "disk_gb": 1},
+    "savegame": "world", "log_file": "game.log",
+    "players": {"stats": "minecraft",
+                "join": r"^\[(?P<time>\d\d:\d\d:\d\d)\] (?P<name>\w+) joined$",
+                "leave": r"^\[(?P<time>\d\d:\d\d:\d\d)\] (?P<name>\w+) left$"},
+    "config": {"file": "cfg.json", "format": "json", "initial": {}},
+    "fields": [],
+}
+games._cache["fakeplayers"] = PLAYERS_GAME
+
+
+class PlayerTrackingTests(unittest.TestCase):
+    def make(self, running):
+        inst = instances.Instance.create("fakeplayers")
+        self.addCleanup(shutil.rmtree, inst.dir, True)
+        os.makedirs(inst.server_dir)
+        inst._save_meta(dict(inst.meta(), installed=True))
+        inst.running = lambda: running
+        return inst
+
+    def write_log(self, inst, lines, mode="w"):
+        with open(os.path.join(inst.server_dir, "game.log"), mode, encoding="utf-8") as fh:
+            fh.write("".join(l + "\n" for l in lines))
+
+    @staticmethod
+    def clock(offset):
+        return time.strftime("%H:%M:%S", time.localtime(time.time() - offset))
+
+    @staticmethod
+    def real_games():
+        folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "games")
+        for fname in sorted(os.listdir(folder)):
+            with open(os.path.join(folder, fname), encoding="utf-8") as fh:
+                yield json.load(fh)
+
+    def test_exemples_de_chaque_jeu_sont_reconnus(self):
+        checked = 0
+        for game in self.real_games():
+            spec = game.get("players")
+            if not spec:
+                continue
+            checked += 1
+            with self.subTest(game=game["id"]):
+                join = players.parse_line(game, spec["sample"]["join"], time.time())
+                leave = players.parse_line(game, spec["sample"]["leave"], time.time())
+                self.assertEqual(join[0], "join")
+                self.assertEqual(leave[0], "leave")
+                self.assertIsNone(players.parse_line(game, "[12:00:00] [Server thread/INFO]: <Steve> joined the game", time.time()))
+        self.assertGreaterEqual(checked, 3)
+
+    def test_noms_extraits_des_vraies_lignes(self):
+        by_id = {g["id"]: g for g in self.real_games()}
+        enshrouded, palworld = by_id["enshrouded"], by_id["palworld"]
+        self.assertEqual(players.parse_line(enshrouded, enshrouded["players"]["sample"]["join"], time.time())[1], "Verba Lanash")
+        self.assertEqual(players.parse_line(enshrouded, enshrouded["players"]["sample"]["leave"], time.time())[1], "Zajabel")
+        found = players.parse_line(palworld, palworld["players"]["sample"]["join"], time.time())
+        self.assertEqual((found[1], found[2]), ("Zajabel", "steam_76561198000000000"))
+
+    def test_sessions_et_statistiques(self):
+        inst = self.make(running=True)
+        self.write_log(inst, ["[%s] Alice joined" % self.clock(600), "[%s] Bob joined" % self.clock(500),
+                              "[%s] Bob left" % self.clock(200), "[%s] Bob joined" % self.clock(100), "bruit"])
+        out = players.report(inst)
+        by_name = {p["name"]: p for p in out["players"]}
+        self.assertTrue(by_name["Alice"]["online"])
+        self.assertTrue(by_name["Bob"]["online"])
+        self.assertEqual(by_name["Bob"]["sessions"], 2)
+        self.assertAlmostEqual(by_name["Bob"]["longest"], 300, delta=5)
+        self.assertEqual(out["totals"]["unique"], 2)
+        self.assertEqual(out["totals"]["peak"], 2)
+        self.assertEqual(out["totals"]["online"], 2)
+        self.assertEqual(out["players"][0]["online"], True)
+
+    def test_lecture_incrementale_sans_doublon(self):
+        inst = self.make(running=True)
+        self.write_log(inst, ["[%s] Alice joined" % self.clock(300)])
+        players.update(inst)
+        players.update(inst)   # relecture : rien ne change
+        self.write_log(inst, ["[%s] Alice left" % self.clock(100)], mode="a")
+        out = players.report(inst)
+        alice = out["players"][0]
+        self.assertEqual(alice["sessions"], 1)
+        self.assertFalse(alice["online"])
+        self.assertAlmostEqual(alice["seconds"], 200, delta=5)
+
+    def test_ligne_incomplete_attend_la_suite(self):
+        inst = self.make(running=True)
+        with open(os.path.join(inst.server_dir, "game.log"), "w") as fh:
+            fh.write("[%s] Alice jo" % self.clock(10))
+        self.assertEqual(players.report(inst)["totals"]["unique"], 0)
+        with open(os.path.join(inst.server_dir, "game.log"), "a") as fh:
+            fh.write("ined\n")
+        self.assertEqual(players.report(inst)["totals"]["unique"], 1)
+
+    def test_arret_du_serveur_ferme_les_sessions(self):
+        inst = self.make(running=False)
+        self.write_log(inst, ["[%s] Alice joined" % self.clock(300)])
+        out = players.report(inst)
+        self.assertFalse(out["players"][0]["online"])
+        self.assertEqual(out["events"][0]["kind"], "stop")
+
+    def test_journal_remplace_est_relu_depuis_le_debut(self):
+        inst = self.make(running=True)
+        self.write_log(inst, ["[%s] Alice joined" % self.clock(300), "[%s] Alice left" % self.clock(250)])
+        players.update(inst)
+        self.write_log(inst, ["[%s] Bob joined" % self.clock(60)])   # nouveau journal, plus court
+        names = {p["name"] for p in players.report(inst)["players"]}
+        self.assertEqual(names, {"Alice", "Bob"})
+
+    def test_heure_du_jour_dans_le_futur_date_d_hier(self):
+        now = time.time()
+        future = time.strftime("%H:%M:%S", time.localtime(now + 3600))
+        self.assertAlmostEqual(players.resolve_time({"time": future}, now), now + 3600 - 86400, delta=2)
+        self.assertEqual(players.resolve_time({}, now), now)
+        self.assertEqual(players.resolve_time({"time": "n'importe quoi"}, now), now)
+
+    def test_statistiques_minecraft(self):
+        inst = self.make(running=False)
+        stats = os.path.join(inst.server_dir, "world", "stats")
+        advs = os.path.join(inst.server_dir, "world", "advancements")
+        os.makedirs(stats)
+        os.makedirs(advs)
+        uuid = "11111111-2222-3333-4444-555555555555"
+        with open(os.path.join(inst.server_dir, "usercache.json"), "w") as fh:
+            json.dump([{"name": "Steve", "uuid": uuid}, {"name": "Inconnu", "uuid": "zzz"}], fh)
+        with open(os.path.join(stats, uuid + ".json"), "w") as fh:
+            json.dump({"stats": {"minecraft:custom": {"minecraft:play_time": 72000, "minecraft:deaths": 4, "minecraft:walk_one_cm": 250000,
+                                                        "minecraft:sprint_one_cm": 250000, "minecraft:jump": 10},
+                                 "minecraft:mined": {"minecraft:stone": 30, "minecraft:dirt": 12}}}, fh)
+        with open(os.path.join(advs, uuid + ".json"), "w") as fh:
+            json.dump({"minecraft:story/root": {"done": True}, "minecraft:recipes/x": {"done": True}, "minecraft:story/y": {"done": False}, "DataVersion": 1}, fh)
+        out = players.report(inst)
+        steve = out["players"][0]
+        self.assertTrue(steve["before_lana"])
+        stats_by_key = {s["key"]: s["value"] for s in steve["stats"]}
+        self.assertEqual(stats_by_key["playtime"], 3600)
+        self.assertEqual(stats_by_key["deaths"], 4)
+        self.assertEqual(stats_by_key["distance"], 5.0)
+        self.assertEqual(stats_by_key["mined"], 42)
+        self.assertEqual(stats_by_key["advancements"], 1)
+        self.assertIn("Plus gros mineur", [r["label"] for r in out["records"]])
+
+    def test_jeu_sans_suivi(self):
+        inst = instances.Instance.create("fake")
+        self.addCleanup(shutil.rmtree, inst.dir, True)
+        inst._save_meta(dict(inst.meta(), installed=True))
+        self.assertIsNone(players.report(inst))
 
 
 class WebPayloadTests(unittest.TestCase):

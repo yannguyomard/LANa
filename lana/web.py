@@ -6,10 +6,11 @@ import os
 import re
 import secrets
 import shutil
+import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, games, instances, jobs, machine, paths, system
+from . import __version__, games, instances, jobs, machine, paths, players, system
 from .instances import Instance, InstanceError
 
 ROUTE_INSTANCE = re.compile(r"^/api/instances/([a-z0-9-]+)(?:/([a-z-]+))?$")
@@ -47,6 +48,8 @@ def instance_payload(inst):
     out["fields"] = game["fields"]
     out["requirements"] = game["requirements"]
     out["eula"] = game.get("eula")
+    tracking = game.get("players")
+    out["players_tracking"] = {"verified": tracking.get("verified", False), "note": tracking.get("note", "")} if tracking else None
     if out["installed"]:
         values = inst.read_config()
         out["values"] = values
@@ -160,6 +163,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self.json(instance_payload(inst))
                 if match.group(2) == "log":
                     return self.reply(200, inst.log_tail(), "text/plain")
+                if match.group(2) == "players":
+                    found = players.report(inst) if inst.meta().get("installed") else None
+                    if found is None:
+                        return self.fail("Le suivi des joueurs n'est pas disponible pour ce serveur", 404)
+                    return self.json(found)
             self.fail("Introuvable", 404)
         except InstanceError as ex:
             self.fail(str(ex), 404)
@@ -260,4 +268,5 @@ def serve(host, port):
         print("Identifiants créés — utilisateur : %s  mot de passe : %s" % (Handler.auth["user"], Handler.auth["password"]))
         print("(ils sont aussi dans %s)" % paths.AUTH_FILE)
     print("LANa %s sur http://%s:%d" % (__version__, "localhost" if host == "127.0.0.1" else host, port))
+    threading.Thread(target=players.track_forever, args=(instances.list_all,), daemon=True).start()
     ThreadingHTTPServer((host, port), Handler).serve_forever()

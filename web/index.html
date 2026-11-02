@@ -40,6 +40,15 @@ pre{margin:0;max-height:300px;overflow:auto;font:12px/1.4 ui-monospace,Menlo,mon
 #toast div{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--ok);border-radius:8px;padding:10px 14px;margin-bottom:10px}
 #toast div.err{border-left-color:var(--bad)}
 a.back{color:var(--mut);text-decoration:none;font-size:14px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:12px}
+.tile{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.tile b{display:block;font-size:20px}.tile span{font-size:12px;color:var(--mut)}
+table.pl{width:100%;border-collapse:collapse;font-size:14px}
+table.pl th{text-align:left;font-size:12px;color:var(--mut);font-weight:500;padding:6px 8px;border-bottom:1px solid var(--line)}
+table.pl td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.pl tr.more td{background:var(--bg);font-size:13px}
+table.pl tr.pr{cursor:pointer}
+.tbl{overflow-x:auto}
 .badge{font-size:12px;border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:var(--mut)}
 </style>
 </head>
@@ -165,6 +174,52 @@ function collectionInput(f,val){
     get:()=>rows.map(r=>Object.fromEntries(Object.entries(r.getters).map(([k,g])=>[k,g()])))};
 }
 
+// ---------- joueurs ----------
+const dur=sec=>{sec=Math.round(sec||0);if(sec<60)return sec+" s";const m=Math.floor(sec/60);if(m<60)return m+" min";
+  const h=Math.floor(m/60);return h<48?`${h} h ${String(m%60).padStart(2,"0")}`:`${Math.floor(h/24)} j ${h%24} h`};
+const when=t=>{if(!t)return "—";const d=new Date(t*1000),n=new Date(),same=d.toDateString()===n.toDateString();
+  const hm=d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+  return same?"aujourd'hui "+hm:d.toLocaleDateString("fr-FR",{day:"numeric",month:"short"})+" "+hm};
+const statText=s=>s.unit==="s"?dur(s.value):s.unit==="km"?s.value.toFixed(1)+" km":Math.round(s.value).toLocaleString("fr-FR");
+function playersCard(tracking){
+  const card=mk("section",{className:"card"},mk("h2",{textContent:"Joueurs"})),body=mk("div");card.append(body);
+  if(!tracking){body.append(mk("div",{className:"hint",textContent:"Le suivi des joueurs n'est pas encore disponible pour ce jeu : son format de journal n'a pas pu être vérifié."}));return {card,update(){}}}
+  const open=new Set();
+  function update(d){
+    body.innerHTML="";
+    if(!d){return}
+    const t=d.totals;
+    if(!tracking.verified&&tracking.note)body.append(mk("div",{className:"msg warn",textContent:tracking.note}));
+    const tile=(v,l)=>mk("div",{className:"tile"},mk("b",{textContent:v}),mk("span",{textContent:l}));
+    body.append(mk("div",{className:"tiles"},tile(t.online,"en ligne"),tile(t.unique,"joueurs différents"),tile(dur(t.seconds),"temps de jeu cumulé"),
+      tile(t.sessions,"sessions"),tile(t.sessions?dur(t.average_session):"—","session moyenne"),
+      tile(t.peak||"—",t.peak?`pic de joueurs, ${when(t.peak_at)}`:"pic de joueurs")));
+    const recs=[...(d.records||[])];
+    if(t.longest_session)recs.push({label:"Plus longue session",name:t.longest_session.name,value:t.longest_session.seconds,unit:"s"});
+    if(recs.length)body.append(mk("div",{className:"row",style:"gap:8px;margin-bottom:12px"},...recs.map(r=>
+      mk("span",{className:"badge",textContent:`${r.label} : ${r.name} (${statText(r)})`}))));
+    if(!d.players.length){body.append(mk("div",{className:"hint",textContent:"Aucun joueur vu pour l'instant. Les connexions sont lues dans le journal du serveur."}));return}
+    const rows=d.players.flatMap(p=>{
+      const tr=mk("tr",{className:"pr",onclick:()=>{open.has(p.name)?open.delete(p.name):open.add(p.name);update(d)}},
+        mk("td",{},mk("span",{className:"dot "+(p.online?"on":""),style:"display:inline-block;margin-right:8px"}),mk("strong",{textContent:p.name})),
+        mk("td",{textContent:p.online?"en ligne depuis "+dur(Date.now()/1000-p.online_since):p.last_seen?"vu "+when(p.last_seen):"avant LANa"}),
+        mk("td",{textContent:dur(p.seconds)}),mk("td",{textContent:p.sessions||"—"}));
+      const out=[tr];
+      if(open.has(p.name)){
+        const det=[["Première connexion",when(p.first_seen)],["Dernière session",p.online?"en cours":when(p.last_seen)],["Plus longue session",dur(p.longest)],
+          ...(p.id?[["Identifiant",p.id]]:[]),...((p.stats||[]).map(s=>[s.label,statText(s)]))];
+        out.push(mk("tr",{className:"more"},mk("td",{colSpan:4},mk("div",{className:"tiles",style:"margin:0"},...det.map(([l,v])=>tile(v,l))))));
+      }
+      return out;
+    });
+    body.append(mk("div",{className:"tbl"},mk("table",{className:"pl"},
+      mk("thead",{},mk("tr",{},...["Joueur","Statut","Temps de jeu","Sessions"].map(h=>mk("th",{textContent:h})))),mk("tbody",{},...rows))));
+    if(d.events.length)body.append(mk("div",{className:"hint",style:"margin-top:12px",textContent:"Derniers événements : "+
+      d.events.slice(0,6).map(e=>`${e.name} ${e.kind==="join"?"connecté":e.kind==="stop"?"déconnecté (arrêt du serveur)":"parti"} ${when(e.t)}`).join(" · ")}));
+  }
+  return {card,update};
+}
+
 async function serverView(id){
   const s=await api("/api/instances/"+id);
   if(s.ok===false){toast(s.message,true);location.hash="#/";return}
@@ -185,6 +240,7 @@ async function serverView(id){
   const head=mk("section",{className:"card"},mk("div",{className:"row"},dot,st,info,mk("span",{className:"grow"}),bStart,bStop,bRe));
   head.append(mk("div",{className:"hint",style:"margin-top:8px",textContent:`Connexion : ${s.connect} · ports à ouvrir sur la box : ${s.ports.map(p=>`${p.port}/${p.proto.toUpperCase()}`).join(", ")}`}));
   v.append(head);
+  const pc=playersCard(s.players_tracking);v.append(pc.card);
 
   // paramètres, groupés
   const getters={},groups={};
@@ -238,6 +294,7 @@ async function serverView(id){
     const x=await api("/api/instances/"+id);
     dot.className="dot "+(x.running?"on":"off");st.textContent=x.running?"En marche":"Arrêté";
     bStart.disabled=x.running;bStop.disabled=!x.running;
+    if(s.players_tracking){const d=await api(`/api/instances/${id}/players`);if(current===id)pc.update(d.ok===false?null:d)}
     const atEnd=log.scrollTop+log.clientHeight>=log.scrollHeight-20;
     log.textContent=await api(`/api/instances/${id}/log`);if(atEnd)log.scrollTop=log.scrollHeight;
   }
