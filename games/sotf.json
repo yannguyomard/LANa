@@ -26,7 +26,7 @@
   },
   "requirements": {
     "ram_gb_min": 6,
-    "ram_gb_recommended": 12,
+    "ram_gb_recommended": 8,
     "disk_gb": 6
   },
   "ports": [
