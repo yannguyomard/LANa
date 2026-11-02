@@ -16,6 +16,21 @@ from .instances import Instance, InstanceError
 ROUTE_INSTANCE = re.compile(r"^/api/instances/([a-z0-9-]+)(?:/([a-z-]+))?$")
 ROUTE_JOB = re.compile(r"^/api/jobs/([0-9a-f]+)$")
 ROUTE_DOWNLOAD = re.compile(r"^/api/instances/([a-z0-9-]+)/backups/([A-Za-z0-9._-]+)$")
+# Fichiers de l'interface (polices…) : noms simples uniquement, sans « .. » possible, et types en liste blanche.
+ROUTE_STATIC = re.compile(r"^/static/((?:[a-z0-9_-]+/)*[a-z0-9_-]+(\.[a-z0-9]+))$")
+STATIC_TYPES = {".woff2": "font/woff2", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".js": "text/javascript; charset=utf-8"}
+
+
+def static_file(url_path):
+    """(chemin, type) d'un fichier de web/static demandé par l'interface, ou None s'il est refusé ou absent."""
+    match = ROUTE_STATIC.match(url_path)
+    if not match or match.group(2) not in STATIC_TYPES:
+        return None
+    base = os.path.realpath(os.path.join(paths.WEB_DIR, "static"))
+    full = os.path.realpath(os.path.join(base, match.group(1)))
+    if not full.startswith(base + os.sep) or not os.path.isfile(full):
+        return None
+    return full, STATIC_TYPES[match.group(2)]
 MAX_UPLOAD_BYTES = 1024 * 2**20   # 1 Go : une sauvegarde de jeu est bien plus petite
 
 
@@ -109,6 +124,16 @@ class Handler(BaseHTTPRequestHandler):
         with open(path, "rb") as fh:
             shutil.copyfileobj(fh, self.wfile, 1 << 20)
 
+    def send_static(self, path, ctype):
+        with open(path, "rb") as fh:
+            raw = fh.read()
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "max-age=86400")
+        self.end_headers()
+        self.wfile.write(raw)
+
     def receive_upload(self, dest):
         """Écrit le corps de la requête dans dest, en refusant ce qui dépasse la limite."""
         length = int(self.headers.get("Content-Length", 0))
@@ -142,6 +167,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/":
                 with open(os.path.join(paths.WEB_DIR, "index.html"), "rb") as fh:
                     return self.reply(200, fh.read(), "text/html")
+            asset = static_file(path)
+            if asset:
+                return self.send_static(*asset)
             if path == "/api/machine":
                 return self.json(dict(machine.detect(), version=__version__))
             if path == "/api/games":

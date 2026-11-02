@@ -119,5 +119,9 @@ tests/            tests unitaires (aucun ne lance Wine)
 LANa est distribuée sous licence MIT (voir `LICENSE`). Elle ne couvre que le code de LANa : SteamCMD, Java (Eclipse Temurin)
 et les serveurs de jeu sont téléchargés chez l'utilisateur depuis leurs sources officielles et restent soumis à leurs propres conditions.
 
+Les polices de l'interface (Space Grotesk, Inter, JetBrains Mono, dans `web/static/fonts/`) sont sous licence
+SIL Open Font License 1.1 ; leur licence est jointe à côté de chaque fichier. Elles sont servies par LANa elle-même :
+l'interface ne charge rien depuis Internet.
+
 LANa n'est affiliée à aucun éditeur des jeux cités (Keen Games, Pocketpair, Stunlock Studios, Endnight Games, Mojang/Microsoft) ni à Valve.
 Les noms des jeux sont des marques de leurs propriétaires.

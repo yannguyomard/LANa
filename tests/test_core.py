@@ -747,6 +747,23 @@ class WebPayloadTests(unittest.TestCase):
         self.assertIn("connect", payload)
 
 
+class StaticFilesTests(unittest.TestCase):
+    def test_polices_servies(self):
+        for name in ("inter", "space-grotesk", "jetbrains-mono"):
+            found = web.static_file("/static/fonts/%s.woff2" % name)
+            self.assertIsNotNone(found, name)
+            self.assertEqual(found[1], "font/woff2")
+            with open(found[0], "rb") as fh:
+                self.assertEqual(fh.read(4), b"wOF2")
+
+    def test_chemins_refuses(self):
+        for bad in ("/static/../lana/web.py", "/static/fonts/../../lana/web.py", "/static/fonts/%2e%2e/x.woff2",
+                    "/static//etc/passwd", "/static/fonts/OFL-inter.txt", "/static/fonts/inexistant.woff2",
+                    "/static/fonts/inter.woff2/", "/static/Fonts/inter.woff2", "/web/index.html"):
+            with self.subTest(path=bad):
+                self.assertIsNone(web.static_file(bad))
+
+
 class PlatformTests(unittest.TestCase):
     def test_meminfo_et_cpuinfo(self):
         self.assertEqual(system.parse_meminfo("MemTotal:        8040312 kB\nMemFree: 1 kB\n"), 8040312 * 1024)
