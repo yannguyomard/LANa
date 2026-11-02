@@ -51,6 +51,11 @@
   ],
   "connect": "{lan_ip}:{GamePort}",
   "savegame": "userdata/Saves",
+  "world_zip": {
+    "label": "Dossier de partie compressé (.zip, ex. 0000000001.zip)",
+    "marker": "SaveData.zip",
+    "into": "DedicatedServer/Multiplayer/{SaveSlot:010d}"
+  },
   "config": {
     "file": "userdata/dedicatedserver.cfg",
     "format": "json",

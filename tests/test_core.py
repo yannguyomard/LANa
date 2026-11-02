@@ -554,6 +554,25 @@ class ZipWorldImportTests(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(inst.server_dir, "world", "MonMonde")))
         self.assertFalse(os.path.exists(os.path.join(inst.server_dir, "world", ".DS_Store")))
 
+    def test_world_into_slot_subfolder(self):
+        """Sons of the Forest : le dossier de partie va dans Saves/DedicatedServer/Multiplayer/<emplacement>."""
+        game = dict(PROPS, id="fakeslot", world_zip={"label": "Partie (.zip)", "marker": "SaveData.zip",
+                                                     "into": "DedicatedServer/Multiplayer/{slot:010d}"})
+        game["config"] = dict(PROPS["config"], initial=dict(PROPS["config"]["initial"], slot=3))
+        game["fields"] = PROPS["fields"] + [{"key": "slot", "label": "Emplacement", "type": "int", "min": 1, "max": 9, "default": 3}]
+        games._cache["fakeslot"] = game
+        inst = instances.Instance.create("fakeslot")
+        os.makedirs(inst.server_dir)
+        write(inst.meta_path, json.dumps(dict(inst.meta(), installed=True)))
+        config.write_initial(game, inst.server_dir)
+        other = os.path.join(inst.server_dir, "world", "DedicatedServer", "Multiplayer", "0000000001", "SaveData.zip")
+        write(other, "autre emplacement")
+        inst.import_save(self.zipfile({"0000000001/SaveData.zip": "partie", "0000000001/x.name": ""}), "0000000001.zip")
+        slot = os.path.join(inst.server_dir, "world", "DedicatedServer", "Multiplayer", "0000000003")
+        self.assertEqual(read(os.path.join(slot, "SaveData.zip")), "partie")
+        self.assertEqual(read(other), "autre emplacement")   # les autres emplacements ne sont pas touchés
+        self.assertTrue(any("avant-import" in b["name"] for b in inst.backups()))
+
     def test_bad_zips_leave_the_world_untouched(self):
         inst = self.make()
         cases = {

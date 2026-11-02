@@ -122,6 +122,8 @@ Pour tous les jeux, depuis la page d'un serveur :
 - **Importer** une archive LANa, ou un fichier au format propre au jeu (déclaré dans `save_import`).
   Le serveur doit être arrêté. Le fichier est vérifié avant d'écraser quoi que ce soit, et la sauvegarde actuelle est archivée d'abord.
   Les archives sont refusées si elles contiennent des liens, des chemins hors du dossier de sauvegarde, ou dépassent 4 Go décompressées.
+- **Sons of the Forest** : compressez le dossier de partie (ex. `0000000001`, dans `Saves/DedicatedServer/Multiplayer/`
+  d'un autre serveur) et importez le `.zip` ; LANa le range dans l'emplacement de partie réglé (`SaveSlot`), sans toucher aux autres.
 
 ## Ajouter un jeu
 
@@ -141,7 +143,7 @@ Un jeu est un fichier `games/<id>.json`, sans code Python. Il décrit :
 - variantes Linux : toute clé `nom_linux` (au premier niveau, dans `install` ou dans `config`) remplace `nom` quand le serveur tourne nativement sous Linux ; `run.linux` / `run.windows` remplacent la commande de lancement ;
 - `compat` : incompatibilité constatée en test (`level` `warn` ou `bad`, `note`). Avec `bad`, l'installation est refusée et la raison affichée ;
 - `log_file` : journal du jeu s'il n'écrit pas sur la sortie standard ;
-- `world_zip` : accepte l'import de mondes `.zip` (`marker` = fichier qui prouve que c'est un monde, ex. `level.dat`) ;
+- `world_zip` : accepte l'import de mondes `.zip` (`marker` = fichier qui prouve que c'est un monde, ex. `level.dat` ; `into`, facultatif = sous-dossier de la sauvegarde où l'extraire, qui peut citer la config, ex. `DedicatedServer/Multiplayer/{SaveSlot:010d}` pour Sons of the Forest) ;
 - `config` : fichier, format (`json`, `properties`, `ini` à sections avec des clés `[Section]Clé`, `cfg` pour les `server.cfg` de type Source/Quake (`prefix`, `quote`), `xml_props`, `xml_elements`, `arma` pour `clé = valeur;`, `none` si tout passe par la ligne de commande, ou `ue_options` pour la ligne `OptionSettings=(…)` d'Unreal) ; seules les lignes des réglages connus et modifiés sont réécrites ; `enforce` = réglages imposés même dans une config existante ; `seed_from` (fichier par défaut du jeu à copier comme point de départ) et `initial` (valeurs imposées par LANa ; le jeton `"{random}"` devient un mot de passe aléatoire) ;
 - `fields` : les paramètres éditables. Types : `text`, `int`, `float`, `bool`, `enum`, `tags`,
   `minutes_ns` (minutes dans l'interface, nanosecondes dans le fichier) et `collection` (liste d'éléments).

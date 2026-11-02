@@ -428,8 +428,21 @@ class Instance:
                 raise InstanceError("Archive trop volumineuse une fois décompressée")
         return top
 
+    def _zip_dest(self):
+        """Dossier où extraire un monde .zip : la sauvegarde, ou le sous-dossier `into` (qui peut citer la config,
+        ex. « DedicatedServer/Multiplayer/{SaveSlot:010d} »)."""
+        into = self.game["world_zip"].get("into")
+        if not into:
+            return self._save_path()
+        values = {k: v for k, v in self.read_config().items() if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", k)}
+        rel = into.format(**values)
+        parts = rel.replace("\\", "/").split("/")
+        if rel.startswith("/") or ".." in parts or "" in parts:
+            raise InstanceError("Dossier d'import invalide : %s" % rel)
+        return os.path.join(self._save_path(), *parts)
+
     def _extract_zip(self, path, top):
-        dest = self._save_path()
+        dest = self._zip_dest()
         if os.path.isdir(dest):
             shutil.rmtree(dest)
         elif os.path.exists(dest):
