@@ -156,7 +156,7 @@ a.back:hover{color:var(--ink)}
 /* ===================== Accueil ===================== */
 .hero{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:30px;align-items:start;margin-bottom:38px;min-height:calc(var(--cell)*7 + 2px)}
 .boot{display:flex;flex-direction:column;gap:4px;padding-top:6px}
-.boot h1{font:600 clamp(28px,4.4vw,44px)/1.05 var(--font-display);letter-spacing:-.02em;margin:0 0 22px;max-width:14ch}
+.boot h1{font:600 clamp(28px,4.4vw,44px)/1.05 var(--font-display);letter-spacing:-.02em;margin:0 0 22px;max-width:16ch}
 .boot h1 em{font-style:normal;color:var(--acc-2)}
 .bl{display:grid;grid-template-columns:8ch 10ch minmax(0,1fr);gap:0 16px;font:12.5px/2.1 var(--font-mono);letter-spacing:.05em;text-transform:uppercase;
   color:var(--ink);opacity:0;animation:blRun 1.6s var(--ease-out) forwards;animation-delay:calc(var(--i)*110ms)}
@@ -453,7 +453,7 @@ async function home(){
       ["Serveurs",!list.length?"aucun — choisissez un jeu ci-dessous":`${running} en marche sur ${list.length}`],
     ];
     const t0=new Date();
-    const boot=mk("div",{className:"boot"},mk("h1",{},"Vos serveurs de jeu, ",mk("em",{textContent:"sur le réseau local."})));
+    const boot=mk("div",{className:"boot"},mk("h1",{},"Vos serveurs de jeu, ",mk("em",{textContent:"sur le réseau local, et au-delà."})));
     lines.forEach(([k,val],i)=>{
       const l=mk("div",{className:"bl"+(i===lines.length-1?" last":"")},mk("span",{className:"t",textContent:clock(new Date(t0.getTime()+i*1000))}),
         mk("span",{className:"k",textContent:k}),mk("span",{className:"v",textContent:val}));
