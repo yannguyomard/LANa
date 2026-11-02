@@ -636,6 +636,14 @@ class PlayerTrackingTests(unittest.TestCase):
     def test_noms_extraits_des_vraies_lignes(self):
         by_id = {g["id"]: g for g in self.real_games()}
         enshrouded, palworld = by_id["enshrouded"], by_id["palworld"]
+        minecraft = by_id["minecraft"]
+        for line, kind in (("[02:27:54] [Server thread/INFO]: System chat: Humainlanash joined the game", "join"),   # vrai journal (1.21)
+                           ("[12:34:56] [Server thread/INFO]: Steve joined the game", "join"),                      # anciennes versions
+                           ("[12:40:01] [Server thread/INFO]: Steve left the game", "leave")):
+            found = players.parse_line(minecraft, line, time.time())
+            self.assertEqual(found[0], kind, line)
+        self.assertEqual(players.parse_line(minecraft, "[02:27:54] [Server thread/INFO]: System chat: Humainlanash joined the game", time.time())[1], "Humainlanash")
+        self.assertIsNone(players.parse_line(minecraft, "[12:00:00] [Server thread/INFO]: <Steve> Bob joined the game", time.time()))
         self.assertEqual(players.parse_line(enshrouded, enshrouded["players"]["sample"]["join"], time.time())[1], "Verba Lanash")
         self.assertEqual(players.parse_line(enshrouded, enshrouded["players"]["sample"]["leave"], time.time())[1], "Zajabel")
         found = players.parse_line(palworld, palworld["players"]["sample"]["join"], time.time())

@@ -27,11 +27,11 @@
   "players": {
     "verified": true,
     "stats": "minecraft",
-    "join": "^\\[(?P<time>\\d\\d:\\d\\d:\\d\\d)\\] \\[[^\\]]*INFO\\](?: \\[[^\\]]+\\])?: (?P<name>\\w{1,16}) joined the game\\s*$",
-    "leave": "^\\[(?P<time>\\d\\d:\\d\\d:\\d\\d)\\] \\[[^\\]]*INFO\\](?: \\[[^\\]]+\\])?: (?P<name>\\w{1,16}) left the game\\s*$",
+    "join": "^\\[(?P<time>\\d\\d:\\d\\d:\\d\\d)\\] \\[[^\\]]*INFO\\](?: \\[[^\\]]+\\])?: (?:System chat: )?(?P<name>\\w{1,16}) joined the game\\s*$",
+    "leave": "^\\[(?P<time>\\d\\d:\\d\\d:\\d\\d)\\] \\[[^\\]]*INFO\\](?: \\[[^\\]]+\\])?: (?:System chat: )?(?P<name>\\w{1,16}) left the game\\s*$",
     "sample": {
-      "join": "[12:34:56] [Server thread/INFO]: Steve joined the game",
-      "leave": "[12:40:01] [Server thread/INFO]: Steve left the game"
+      "join": "[02:27:54] [Server thread/INFO]: System chat: Humainlanash joined the game",
+      "leave": "[02:28:24] [Server thread/INFO]: System chat: Humainlanash left the game"
     }
   },
   "savegame": "world",
