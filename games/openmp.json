@@ -1,0 +1,125 @@
+{
+  "id": "openmp",
+  "name": "GTA San Andreas multijoueur (SA-MP, via open.mp)",
+  "install": {
+    "type": "download",
+    "source": {
+      "kind": "github",
+      "repo": "openmultiplayer/open.mp",
+      "assets": {
+        "windows": "win-x86.zip",
+        "linux": "linux-x86.tar.gz"
+      }
+    },
+    "strip": true,
+    "check_file": "omp-server.exe",
+    "check_file_linux": "omp-server",
+    "executable": [
+      "omp-server"
+    ],
+    "keep": [
+      "config.json"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "omp-server.exe"
+    ],
+    "cwd": ".",
+    "startup_seconds": 15,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./omp-server"
+      ]
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 1,
+    "ram_gb_recommended": 2,
+    "disk_gb": 1,
+    "note": "open.mp est le serveur moderne compatible avec les clients SA-MP 0.3.7 ; un mode de jeu (gamemode) est nécessaire pour jouer."
+  },
+  "ports": [
+    {
+      "from": "network.port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    }
+  ],
+  "connect": "{lan_ip}:{network_port}",
+  "savegame": "scriptfiles",
+  "config": {
+    "file": "config.json",
+    "format": "json",
+    "initial": {
+      "name": "Un serveur LANa",
+      "max_players": 50,
+      "password": "",
+      "network": {
+        "port": 7777
+      },
+      "rcon": {
+        "enable": false,
+        "password": "{random}"
+      }
+    }
+  },
+  "fields": [
+    {
+      "key": "name",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 60
+    },
+    {
+      "key": "max_players",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 50,
+      "group": "Serveur",
+      "min": 1,
+      "max": 1000
+    },
+    {
+      "key": "password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "network.port",
+      "label": "Port",
+      "type": "int",
+      "default": 7777,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port UDP à ouvrir sur la box"
+    },
+    {
+      "key": "rcon.enable",
+      "label": "Administration à distance (RCON)",
+      "type": "bool",
+      "default": false,
+      "group": "Serveur"
+    },
+    {
+      "key": "rcon.password",
+      "label": "Mot de passe RCON",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    }
+  ],
+  "untested": true
+}

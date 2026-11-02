@@ -1,0 +1,164 @@
+{
+  "id": "quakelive",
+  "name": "Quake Live",
+  "install": {
+    "type": "steamcmd",
+    "appid": 349090,
+    "check_file": "baseq3",
+    "make_dirs": [
+      "home"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "qzeroded.exe",
+      "+set",
+      "net_port",
+      "{port}",
+      "+set",
+      "fs_homepath",
+      "home",
+      "+exec",
+      "server.cfg"
+    ],
+    "cwd": ".",
+    "startup_seconds": 20,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./qzeroded.x64",
+        "+set",
+        "net_port",
+        "{port}",
+        "+set",
+        "fs_homepath",
+        "home",
+        "+exec",
+        "server.cfg"
+      ]
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 1,
+    "ram_gb_recommended": 2,
+    "disk_gb": 2
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "Statistiques / RCON"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "home",
+  "config": {
+    "file": "baseq3/server.cfg",
+    "format": "cfg",
+    "prefix": "set ",
+    "initial": {
+      "sv_hostname": "Un serveur LANa"
+    }
+  },
+  "fields": [
+    {
+      "key": "sv_hostname",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 60
+    },
+    {
+      "key": "g_password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "sv_maxClients",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 16,
+      "group": "Serveur",
+      "min": 2,
+      "max": 32
+    },
+    {
+      "key": "g_gametype",
+      "label": "Mode de jeu",
+      "type": "enum",
+      "default": "0",
+      "group": "Jeu",
+      "options": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12"
+      ],
+      "labels": {
+        "0": "Chacun pour soi",
+        "1": "Duel",
+        "2": "Course",
+        "3": "Équipes",
+        "4": "Clan Arena",
+        "5": "Capture du drapeau",
+        "6": "Drapeau unique",
+        "8": "Moisson",
+        "9": "Liberté",
+        "10": "Domination",
+        "11": "Attaque/défense",
+        "12": "Red Rover"
+      }
+    },
+    {
+      "key": "timelimit",
+      "label": "Limite de temps (min)",
+      "type": "int",
+      "default": 15,
+      "group": "Serveur",
+      "min": 0,
+      "max": 120
+    },
+    {
+      "key": "fraglimit",
+      "label": "Limite de frags",
+      "type": "int",
+      "default": 50,
+      "group": "Serveur",
+      "min": 0,
+      "max": 500
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 27960,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    }
+  ],
+  "untested": true
+}

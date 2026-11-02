@@ -1,0 +1,118 @@
+{
+  "id": "ragemp",
+  "name": "GTA V multijoueur (RAGE Multiplayer)",
+  "install": {
+    "type": "upload",
+    "check_file": "ragemp-server.exe",
+    "check_file_linux": "ragemp-server",
+    "executable": [
+      "ragemp-server"
+    ],
+    "keep": [
+      "conf.json"
+    ],
+    "help": "Les fichiers serveur de RAGE MP ne se téléchargent pas automatiquement. Installez le client RAGE MP, puis compressez son dossier « server-files » (ou l'archive Linux publiée sur rage.mp) et déposez l'archive ici."
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "ragemp-server.exe"
+    ],
+    "cwd": ".",
+    "startup_seconds": 20,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./ragemp-server"
+      ]
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 2,
+    "ram_gb_recommended": 4,
+    "disk_gb": 2,
+    "note": "Les joueurs ont besoin de GTA V et du client RAGE MP."
+  },
+  "ports": [
+    {
+      "from": "port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "port",
+      "offset": 1,
+      "proto": "tcp",
+      "label": "Paquets client (HTTP)"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "packages",
+  "config": {
+    "file": "conf.json",
+    "format": "json",
+    "initial": {
+      "bind": "0.0.0.0",
+      "name": "Un serveur LANa",
+      "port": 22005
+    },
+    "enforce": {
+      "bind": "0.0.0.0"
+    }
+  },
+  "fields": [
+    {
+      "key": "name",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 80
+    },
+    {
+      "key": "maxplayers",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 50,
+      "group": "Serveur",
+      "min": 1,
+      "max": 1000
+    },
+    {
+      "key": "gamemode",
+      "label": "Mode de jeu",
+      "type": "text",
+      "default": "freeroam",
+      "group": "Jeu",
+      "maxlen": 40
+    },
+    {
+      "key": "announce",
+      "label": "Visible dans la liste publique",
+      "type": "bool",
+      "default": false,
+      "group": "Serveur"
+    },
+    {
+      "key": "port",
+      "label": "Port",
+      "type": "int",
+      "default": 22005,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "UDP, et le port suivant en TCP"
+    },
+    {
+      "key": "stream-distance",
+      "label": "Distance de diffusion",
+      "type": "float",
+      "default": 500.0,
+      "group": "Performances",
+      "min": 50.0,
+      "max": 2000.0
+    }
+  ],
+  "untested": true
+}

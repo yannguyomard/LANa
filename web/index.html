@@ -206,6 +206,8 @@ a.back:hover{color:var(--ink)}
 .game .nm{font:600 18px/1.2 var(--font-display)}
 .game .req{color:var(--mut)}
 .game .foot{margin-top:auto;display:flex;align-items:center;gap:10px;padding-top:6px}
+.tagx{font-size:10.5px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--mut);cursor:help}
+.steam{display:flex;flex-direction:column;gap:8px;padding-top:4px}
 .empty{border:1px dashed var(--line);border-radius:var(--radius);padding:22px;color:var(--mut);text-align:center}
 
 /* ===================== Installation (récit façon journal) ===================== */
@@ -320,7 +322,36 @@ let timer=null,current=null;
 const askEula=e=>!e||confirm(`${e.label}\n${e.url}\n\nAvez-vous lu ce contrat et l'acceptez-vous ?`);
 
 // Couleur signature de chaque jeu (bandes, cases de la grille) : les accents de leurs thèmes.
-const GAME_COLORS={enshrouded:"#ff8a3d",minecraft:"#6cc04a",vrising:"#d4183c",palworld:"#2e9be6",sotf:"#d9a441"};
+const GAME_COLORS={enshrouded:"#ff8a3d",minecraft:"#6cc04a",vrising:"#d4183c",palworld:"#2e9be6",sotf:"#d9a441",
+  cs2:"#de9b35",cs16:"#c7a95b",css:"#e0a040",tf2:"#cf6a32",l4d2:"#b8322a",gmod:"#1194f0",ark:"#4fa3a5",ark_sa:"#58b7c0",
+  rust:"#ce422b",dayz:"#8a9a5b",arma3:"#6b8e23",projectzomboid:"#a12b2b",valheim:"#6f8fb3",unturned:"#5aa02c",sevendays:"#d35400",
+  darkandlight:"#7b5ea7",theisle:"#7a9a3a",vein:"#9aa0a6",quakelive:"#c0392b",minecraft_bedrock:"#52a535",fivem:"#f40552",
+  redm:"#c0392b",ragemp:"#3aa0ff",openmp:"#e8a33d",mta:"#e2a400"};
+
+// Identifiants Steam pour les serveurs qui exigent un compte possédant le jeu (DayZ, Arma 3) : jamais stockés.
+function steamFields(){
+  const user=mk("input",{placeholder:"Identifiant Steam",autocomplete:"username"});
+  const pass=mk("input",{type:"password",placeholder:"Mot de passe Steam",autocomplete:"current-password"});
+  const guard=mk("input",{placeholder:"Code Steam Guard (si demandé)",maxLength:10});
+  const el=mk("div",{className:"steam"},mk("div",{className:"hint",textContent:"Ce serveur ne se télécharge qu'avec un compte Steam qui possède le jeu. Le mot de passe sert à ce téléchargement seulement : LANa ne l'enregistre pas."}),
+    mk("div",{className:"grid",style:"grid-template-columns:1fr 1fr;gap:8px"},user,pass),guard);
+  return {el,get:()=>({user:user.value.trim(),password:pass.value,guard:guard.value.trim()}),clear:()=>{pass.value="";guard.value=""}};
+}
+
+// Dépôt de l'archive des fichiers serveur (jeux non téléchargeables automatiquement, ex. RAGE MP).
+function uploadServerFiles(id,help,eula,done){
+  const file=mk("input",{type:"file",accept:".zip,.tar,.gz,.tgz,.xz"});
+  const b=btn("Installer depuis l'archive","p");
+  b.onclick=async()=>{
+    const f=file.files[0];if(!f){toast("Choisissez d'abord l'archive des fichiers serveur",true);return}
+    if(!askEula(eula))return;
+    b.disabled=true;toast("Envoi et installation en cours…");
+    try{const r=await(await fetch(`/api/instances/${id}/server-files`,{method:"POST",headers:{"X-LANa":"1","X-Filename":encodeURIComponent(f.name),"X-Accept-Eula":eula?"1":"0"},body:f})).json();
+      toast(r.message,!r.ok);if(r.ok)done()}catch(e){toast("Erreur réseau",true)}
+    b.disabled=false;
+  };
+  return mk("div",{},mk("div",{className:"hint",style:"margin:10px 0",textContent:help}),mk("div",{className:"row"},file,b));
+}
 const gameColor=id=>GAME_COLORS[id]||"var(--acc)";
 
 // ---------- mouvement ----------
@@ -479,23 +510,34 @@ async function home(){
 
     // catalogue
     const cat=mk("section",{className:"block"},label(2,"Installer un jeu"));
+    const search=mk("input",{type:"search",placeholder:`Rechercher parmi ${g.length} jeux…`,style:"max-width:360px;margin-bottom:14px","aria-label":"Rechercher un jeu"});
     const grid=mk("div",{className:"games"});
+    search.oninput=()=>{const q=search.value.trim().toLowerCase();[...grid.children].forEach(c=>c.hidden=!!q&&!c.dataset.name.includes(q))};
     g.forEach((game,i)=>{
       const lvl=game.verdict.level;
       const b=btn("Installer","p",{disabled:lvl==="bad"||!!game.eula});
+      const acc=game.steam_account?steamFields():null;
       b.onclick=()=>{if(lvl==="warn"&&!confirm(game.verdict.messages.join("\n")+"\n\nInstaller quand même ?"))return;
-        act([b],"/api/instances",{game:game.id,accept_eula:!!game.eula},r=>location.hash="#/install/"+r.job+"/"+r.id)};
+        const body={game:game.id,accept_eula:!!game.eula};
+        if(acc){body.steam=acc.get();if(!body.steam.user||!body.steam.password){toast("Identifiant et mot de passe Steam requis pour ce jeu",true);return}}
+        act([b],"/api/instances",body,r=>{acc&&acc.clear();location.hash=r.job?"#/install/"+r.job+"/"+r.id:"#/s/"+r.id})};
       const card=mk("div",{className:"game"},
-        mk("div",{className:"row"},mk("span",{className:"dot "+(lvl==="ok"?"on":lvl==="warn"?"warn":"bad")}),mk("span",{className:"nm",textContent:game.name})),
+        mk("div",{className:"row"},mk("span",{className:"dot "+(lvl==="ok"?"on":lvl==="warn"?"warn":"bad")}),mk("span",{className:"nm",textContent:game.name}),
+          mk("span",{className:"grow"}),
+          game.untested?mk("span",{className:"tagx caps",textContent:"à tester",title:"Définition écrite d'après la documentation officielle et les données Steam, pas encore essayée en conditions réelles."}):null,
+          game.wine?mk("span",{className:"tagx caps",textContent:"Wine",title:"Serveur Windows : sur cette machine, il tourne sous Wine. Compatibilité non garantie."}):null),
         mk("div",{className:"req caps",textContent:`RAM ${game.requirements.ram_gb_min}–${game.requirements.ram_gb_recommended} Go · ${game.requirements.disk_gb} Go disque`}));
       game.verdict.messages.forEach(t=>card.append(mk("div",{className:"msg "+(lvl==="bad"?"bad":lvl==="warn"?"warn":""),textContent:t})));
       if(game.eula)card.append(mk("label",{className:"chk"},
         mk("input",{type:"checkbox",onchange:e=>b.disabled=lvl==="bad"||!e.target.checked}),
         mk("span",{},"J'ai lu et j'accepte le ",mk("a",{href:game.eula.url,target:"_blank",rel:"noopener",textContent:game.eula.label}))));
+      if(acc)card.append(acc.el);
+      if(game.install_type==="upload")card.append(mk("div",{className:"hint",textContent:"Installation par dépôt d'une archive des fichiers serveur (expliqué à l'étape suivante)."}));
       card.append(mk("div",{className:"foot"},b));
+      card.dataset.name=game.name.toLowerCase()+" "+game.id;
       card.style.setProperty("--g",gameColor(game.id));grid.append(card);
     });
-    cat.append(grid);v.append(cat);
+    cat.append(search,grid);v.append(cat);
   },nav);
 }
 
@@ -632,12 +674,17 @@ async function serverView(id){
   if(nav!==routing)return;
   current=id;
   if(!s.installed){
+    const acc=s.steam_account?steamFields():null;
+    const resume=s.install_type==="upload"?uploadServerFiles(id,s.install_help,s.eula,()=>route()):
+      mk("div",{},acc&&acc.el,btn("Reprendre l'installation","p",{style:"margin-top:14px",onclick:e=>{
+        if(!askEula(s.eula))return;const body={accept_eula:!!s.eula};if(acc)body.steam=acc.get();
+        act([e.currentTarget],`/api/instances/${id}/install`,body,r=>{acc&&acc.clear();location.hash="#/install/"+r.job+"/"+id})}}));
     await swap(()=>{setTheme(s.game);mountScene();const v=$("#view");v.innerHTML="";
       v.append(mk("a",{className:"back caps",href:"#/",textContent:"← Accueil"}),mk("section",{className:"card shead"},
         mk("div",{className:"kind caps",textContent:gameName}),mk("h1",{textContent:s.name}),
-        mk("div",{className:"hint",textContent:"L'installation de ce serveur n'est pas terminée."}),
-        btn("Reprendre l'installation","p",{style:"margin-top:14px",onclick:e=>{
-          if(!askEula(s.eula))return;act([e.currentTarget],`/api/instances/${id}/install`,{accept_eula:!!s.eula},r=>location.hash="#/install/"+r.job+"/"+id)}})))},nav);
+        mk("div",{className:"hint",textContent:s.install_type==="upload"?"Ce serveur s'installe à partir de ses fichiers, que vous fournissez.":"L'installation de ce serveur n'est pas terminée."}),
+        resume),
+        btn("Supprimer ce serveur","d",{style:"margin-top:4px",onclick:e=>confirm("Supprimer ce serveur ?")&&act([e.currentTarget],`/api/instances/${id}/delete`,{},()=>location.hash="#/")}))},nav);
     return;
   }
   // en-tête : état + actions
@@ -651,7 +698,9 @@ async function serverView(id){
     mk("div",{className:"kind caps",textContent:gameName+" · serveur"}),mk("h1",{textContent:s.name}),
     mk("div",{className:"row"},mk("span",{className:"pill"},dot,st),mk("span",{className:"grow"}),mk("div",{className:"acts row"},...all)),
     mk("div",{className:"conn caps"},"Connexion ",mk("b",{textContent:s.connect}),"  ·  ports à ouvrir sur la box ",
-      mk("b",{textContent:s.ports.map(p=>`${p.port}/${p.proto.toUpperCase()}`).join(", ")||"—"})));
+      mk("b",{textContent:s.ports.map(p=>`${p.port}/${p.proto.toUpperCase()}`).join(", ")||"—"})),
+    s.admin_url?mk("div",{className:"row",style:"margin-top:14px"},mk("a",{className:"b",href:s.admin_url,target:"_blank",rel:"noopener",textContent:"Ouvrir le panneau du jeu (txAdmin) ↗"}),
+      mk("span",{className:"hint",textContent:"Configuration du jeu, ressources, clé de licence : une fois le serveur démarré."})):null);
   let n=1;
   const pc=playersCard(s.players_tracking,n++);
 

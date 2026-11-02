@@ -1,6 +1,6 @@
 # LANa
 
-Installer et administrer des serveurs de jeu depuis un panneau web, pensé pour de vieux Mac Intel, et fonctionnel sous macOS, Linux et Windows.
+Installer et administrer des serveurs de jeu (30 jeux) depuis un panneau web, pensé pour de vieux Mac Intel, et fonctionnel sous macOS, Linux et Windows.
 Aucune dépendance Python à installer : la bibliothèque standard suffit (Python 3.9 ou plus récent).
 
 ## Lancer
@@ -34,6 +34,43 @@ LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d
 | V Rising | disponible (Wine) : installation, démarrage, réglages lus par le jeu, testés sur Mac Intel de 8 Go (environ 1,9 Go de RAM) |
 | Palworld | disponible (Wine), **installation et configuration vérifiées, démarrage non testé** : 8 Go de RAM est son minimum et cette machine héberge déjà un autre serveur |
 | Sons of the Forest | **expérimental sur Mac Intel avec Wine 11** : le serveur démarre et fait ses sauvegardes automatiques (constaté lancé à la main), avec des erreurs de shaders sans conséquence apparente, mais il a **planté en cours de partie**. Le démarrage via LANa n'est pas encore validé |
+
+### Jeux ajoutés, à tester
+
+Les 25 jeux suivants sont décrits d'après la documentation officielle et les données de Steam (identifiants et
+exécutables vérifiés à la source), **sans avoir encore été essayés en conditions réelles** : l'interface les marque
+« à tester ». Sous macOS et Linux, les serveurs Windows tournent sous Wine (étiquette « Wine »), sans garantie.
+
+| Jeu | Installation | Réglages | Particularité |
+|---|---|---|---|
+| Counter-Strike 2 | SteamCMD (730) | `server.cfg` | ~60 Go ; jeton GSLT pour être visible sur Internet |
+| Counter-Strike 1.6 | SteamCMD (90, mod cstrike) | `server.cfg` | |
+| Counter-Strike: Source | SteamCMD (232330) | `server.cfg` | |
+| Team Fortress 2 | SteamCMD (232250) | `server.cfg` | |
+| Left 4 Dead 2 | SteamCMD (222860) | `server.cfg` | |
+| Garry's Mod | SteamCMD (4020) | `server.cfg` | mode de jeu et collection Workshop au lancement |
+| ARK: Survival Evolved | SteamCMD (376030) | `GameUserSettings.ini` | carte, ports et joueurs au lancement |
+| ARK: Survival Ascended | SteamCMD (2430930) | `GameUserSettings.ini` | Windows seulement, 12 Go de RAM minimum |
+| Rust | SteamCMD (258550) | `server.cfg` + lancement | carte, graine, taille et RCON au lancement |
+| DayZ | SteamCMD (223350) | `serverDZ.cfg` | **compte Steam possédant le jeu** demandé à l'installation (jamais enregistré) |
+| Arma 3 | SteamCMD (233780) | `server.cfg` | **compte Steam possédant le jeu** |
+| Project Zomboid | SteamCMD (380870) | `Zomboid/Server/lana.ini` | mot de passe administrateur obligatoire |
+| Valheim | SteamCMD (896660) | lancement | mot de passe d'au moins 5 caractères |
+| Unturned | SteamCMD (1110390) | `Commands.dat` | jeton GSLT pour un serveur Internet |
+| 7 Days to Die | SteamCMD (294420) | `serverconfig.xml` | |
+| Dark and Light | SteamCMD (630230) | `GameUserSettings.ini` | Windows seulement ; nom de session sans espace |
+| The Isle (Evrima) | SteamCMD (412680, branche evrima) | `Game.ini` | identifiants Epic Online Services à ajouter dans `Engine.ini` |
+| Quake Live | SteamCMD (349090) | `server.cfg` | |
+| VEIN | SteamCMD (2131400) | `Game.ini` | |
+| Minecraft (Bedrock) | téléchargement Mojang | `server.properties` | contrat de licence à accepter |
+| FiveM | FXServer (Cfx.re, version recommandée) | txAdmin | configuration et clé de licence dans txAdmin (lien sur la page du serveur) |
+| RedM | FXServer | txAdmin | idem, en choisissant RedM |
+| GTA SA multijoueur (SA-MP) | open.mp (GitHub) | `config.json` | serveur moderne compatible SA-MP 0.3.7 |
+| Multi Theft Auto: San Andreas | Linux : archive officielle ; Windows et macOS : installeur MTA silencieux | `mtaserver.conf` | |
+| RAGE Multiplayer | **archive fournie par l'utilisateur** | `conf.json` | le site de RAGE MP refuse les téléchargements automatisés |
+
+Non disponibles : **Hell Let Loose** (pas de serveur public : réservé à des hébergeurs sous licence) et **Atlas**
+(serveur en grille qui exige une base Redis et un éditeur de grille).
 
 ### Limite connue : sauvegarde à l'arrêt des serveurs Windows
 
@@ -81,16 +118,23 @@ Pour tous les jeux, depuis la page d'un serveur :
 
 Un jeu est un fichier `games/<id>.json`, sans code Python. Il décrit :
 
-- `install` : comment l'installer (`steamcmd` avec `appid`, `platform`, `check_file` ; ou `mojang` pour Minecraft) ; `write_files` = fichiers à créer à côté de l'exécutable ;
+- `install` : comment l'installer, et `check_file` (fichier témoin d'une installation réussie) :
+  - `steamcmd` avec `appid`, et au besoin `beta` (branche), `mod` (jeux GoldSrc) ou `login: "account"` (compte Steam possédant le jeu, demandé à l'installation et jamais enregistré) ;
+  - `download` avec `source` : `url` (adresses par plateforme), `github` (dernière version d'un dépôt), `fxserver` (FiveM/RedM) ou `bedrock` ; options `strip`, `keep` (fichiers de l'utilisateur à ne pas écraser), `executable`, `extras`, `archive: "nsis"` (installeur Windows silencieux) ;
+  - `upload` : l'utilisateur dépose l'archive des fichiers serveur (`help` explique où la trouver) ;
+  - `mojang` pour Minecraft (Java) ;
+  - `write_files` = fichiers à créer à côté de l'exécutable, `make_dirs` = dossiers à créer ;
 - `eula` : contrat de licence à faire accepter explicitement par l'utilisateur (`url`, `label`, fichier à écrire). LANa n'accepte jamais un contrat à sa place ;
 - `run` : le runtime (`wine`, `java` ou `native`), la commande, le dossier de lancement, `env` (variables d'environnement) et `stop_signal` (`TERM` par défaut) ;
 - `requirements` : RAM minimale et recommandée, disque, note affichée à l'utilisateur ;
 - `ports`, `connect`, `savegame` (dossier sauvegardé) ;
 - `save_import` : formats de fichier propres au jeu acceptés à l'import (`extensions`, `magic` = premiers octets attendus, `target` = nom du fichier dans le dossier de sauvegarde) ;
+- variantes Linux : toute clé `nom_linux` (au premier niveau, dans `install` ou dans `config`) remplace `nom` quand le serveur tourne nativement sous Linux ; `run.linux` / `run.windows` remplacent la commande de lancement ;
+- `admin_url` : panneau d'administration propre au jeu (ex. txAdmin), affiché sur la page du serveur ;
 - `compat` : incompatibilité constatée en test (`level` `warn` ou `bad`, `note`). Avec `bad`, l'installation est refusée et la raison affichée ;
 - `log_file` : journal du jeu s'il n'écrit pas sur la sortie standard ;
 - `world_zip` : accepte l'import de mondes `.zip` (`marker` = fichier qui prouve que c'est un monde, ex. `level.dat`) ;
-- `config` : fichier, format (`json`, `properties` ou `ue_options` pour la ligne `OptionSettings=(…)` d'Unreal), `seed_from` (fichier par défaut du jeu à copier comme point de départ) et `initial` (valeurs imposées par LANa ; le jeton `"{random}"` devient un mot de passe aléatoire) ;
+- `config` : fichier, format (`json`, `properties`, `ini` à sections avec des clés `[Section]Clé`, `cfg` pour les `server.cfg` de type Source/Quake (`prefix`, `quote`), `xml_props`, `xml_elements`, `arma` pour `clé = valeur;`, `none` si tout passe par la ligne de commande, ou `ue_options` pour la ligne `OptionSettings=(…)` d'Unreal) ; seules les lignes des réglages connus et modifiés sont réécrites ; `enforce` = réglages imposés même dans une config existante ; `seed_from` (fichier par défaut du jeu à copier comme point de départ) et `initial` (valeurs imposées par LANa ; le jeton `"{random}"` devient un mot de passe aléatoire) ;
 - `fields` : les paramètres éditables. Types : `text`, `int`, `float`, `bool`, `enum`, `tags`,
   `minutes_ns` (minutes dans l'interface, nanosecondes dans le fichier) et `collection` (liste d'éléments).
   `key` est un chemin pointé dans le fichier de config (nom entier de la propriété pour `.properties`).

@@ -1,0 +1,116 @@
+{
+  "id": "vein",
+  "name": "VEIN",
+  "install": {
+    "type": "steamcmd",
+    "appid": 2131400,
+    "check_file": "Vein"
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "VeinServer.exe",
+      "-log",
+      "-Port={port}",
+      "-QueryPort={query_port}"
+    ],
+    "cwd": ".",
+    "startup_seconds": 120,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./VeinServer.sh",
+        "-log",
+        "-Port={port}",
+        "-QueryPort={query_port}"
+      ]
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 4,
+    "ram_gb_recommended": 8,
+    "disk_gb": 10
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:query_port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Requêtes Steam"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "Vein/Saved/SaveGames",
+  "config": {
+    "file": "Vein/Saved/Config/WindowsServer/Game.ini",
+    "file_linux": "Vein/Saved/Config/LinuxServer/Game.ini",
+    "format": "ini",
+    "initial": {
+      "[/Script/Vein.VeinGameSession]ServerName": "Un serveur LANa",
+      "[/Script/Vein.VeinGameSession]bPublic": true,
+      "[/Script/Engine.GameSession]MaxPlayers": 8
+    }
+  },
+  "fields": [
+    {
+      "key": "[/Script/Vein.VeinGameSession]ServerName",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 60
+    },
+    {
+      "key": "[/Script/Vein.VeinGameSession]Password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "[/Script/Vein.VeinGameSession]bPublic",
+      "label": "Visible dans la liste publique",
+      "type": "bool",
+      "default": true,
+      "group": "Serveur"
+    },
+    {
+      "key": "[/Script/Engine.GameSession]MaxPlayers",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 8,
+      "group": "Serveur",
+      "min": 1,
+      "max": 64
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 7777,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "lana:query_port",
+      "label": "Port de requêtes Steam",
+      "type": "int",
+      "default": 27015,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    }
+  ],
+  "untested": true
+}

@@ -1,0 +1,173 @@
+{
+  "id": "unturned",
+  "name": "Unturned",
+  "install": {
+    "type": "steamcmd",
+    "appid": 1110390,
+    "check_file": "Bundles",
+    "make_dirs": [
+      "Servers/lana/Server"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "Unturned.exe",
+      "-batchmode",
+      "-nographics",
+      "+{mode}/lana"
+    ],
+    "cwd": ".",
+    "startup_seconds": 60,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./Unturned_Headless.x86_64",
+        "-batchmode",
+        "-nographics",
+        "+{mode}/lana"
+      ]
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 2,
+    "ram_gb_recommended": 4,
+    "disk_gb": 4
+  },
+  "ports": [
+    {
+      "from": "Port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "Port",
+      "offset": 1,
+      "proto": "udp",
+      "label": "Jeu (2)"
+    }
+  ],
+  "connect": "{lan_ip}:{Port}",
+  "savegame": "Servers/lana",
+  "config": {
+    "file": "Servers/lana/Server/Commands.dat",
+    "format": "cfg",
+    "quote": false,
+    "initial": {
+      "Name": "Un serveur LANa",
+      "Port": 27015,
+      "MaxPlayers": 12,
+      "Map": "PEI",
+      "Mode": "Normal",
+      "Perspective": "Both"
+    }
+  },
+  "fields": [
+    {
+      "key": "Name",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 50
+    },
+    {
+      "key": "Password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "MaxPlayers",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 12,
+      "group": "Serveur",
+      "min": 1,
+      "max": 200
+    },
+    {
+      "key": "Port",
+      "label": "Port",
+      "type": "int",
+      "default": 27015,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Ouvrir aussi le port suivant (UDP)"
+    },
+    {
+      "key": "Map",
+      "label": "Carte",
+      "type": "enum",
+      "default": "PEI",
+      "group": "Jeu",
+      "options": [
+        "PEI",
+        "Washington",
+        "Russia",
+        "Yukon",
+        "Germany",
+        "France",
+        "Greece"
+      ]
+    },
+    {
+      "key": "Mode",
+      "label": "Difficulté",
+      "type": "enum",
+      "default": "Normal",
+      "group": "Jeu",
+      "options": [
+        "Easy",
+        "Normal",
+        "Hard"
+      ],
+      "labels": {
+        "Easy": "Facile",
+        "Normal": "Normale",
+        "Hard": "Difficile"
+      }
+    },
+    {
+      "key": "Perspective",
+      "label": "Vue",
+      "type": "enum",
+      "default": "Both",
+      "group": "Jeu",
+      "options": [
+        "First",
+        "Third",
+        "Both",
+        "Vehicle"
+      ],
+      "labels": {
+        "First": "Première personne",
+        "Third": "Troisième personne",
+        "Both": "Les deux",
+        "Vehicle": "Troisième en véhicule"
+      }
+    },
+    {
+      "key": "lana:mode",
+      "label": "Type de serveur",
+      "type": "enum",
+      "default": "InternetServer",
+      "group": "Serveur",
+      "options": [
+        "InternetServer",
+        "LanServer"
+      ],
+      "hint": "Un serveur Internet demande un jeton GSLT (ligne « GSLT » dans Commands.dat)",
+      "labels": {
+        "InternetServer": "Internet",
+        "LanServer": "Réseau local"
+      }
+    }
+  ],
+  "untested": true
+}

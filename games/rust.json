@@ -1,0 +1,223 @@
+{
+  "id": "rust",
+  "name": "Rust",
+  "install": {
+    "type": "steamcmd",
+    "appid": 258550,
+    "check_file": "RustDedicated_Data",
+    "make_dirs": [
+      "logs",
+      "server/lana/cfg"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "RustDedicated.exe",
+      "-batchmode",
+      "-nographics",
+      "+server.port",
+      "{port}",
+      "+server.queryport",
+      "{query_port}",
+      "+server.level",
+      "{level}",
+      "+server.seed",
+      "{seed}",
+      "+server.worldsize",
+      "{worldsize}",
+      "+server.identity",
+      "lana",
+      "+rcon.port",
+      "{rcon_port}",
+      "+rcon.web",
+      "1",
+      "+rcon.password",
+      "{rcon_password}",
+      "-logfile",
+      "logs/server.log"
+    ],
+    "cwd": ".",
+    "startup_seconds": 300,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./RustDedicated",
+        "-batchmode",
+        "-nographics",
+        "+server.port",
+        "{port}",
+        "+server.queryport",
+        "{query_port}",
+        "+server.level",
+        "{level}",
+        "+server.seed",
+        "{seed}",
+        "+server.worldsize",
+        "{worldsize}",
+        "+server.identity",
+        "lana",
+        "+rcon.port",
+        "{rcon_port}",
+        "+rcon.web",
+        "1",
+        "+rcon.password",
+        "{rcon_password}",
+        "-logfile",
+        "logs/server.log"
+      ],
+      "env": {
+        "LD_LIBRARY_PATH": "RustDedicated_Data/Plugins/x86_64"
+      }
+    }
+  },
+  "log_file": "logs/server.log",
+  "requirements": {
+    "ram_gb_min": 8,
+    "ram_gb_recommended": 12,
+    "disk_gb": 15,
+    "note": "Génération de la carte longue au premier démarrage."
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:query_port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Requêtes"
+    },
+    {
+      "from": "lana:rcon_port",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "RCON web"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "server/lana",
+  "config": {
+    "file": "server/lana/cfg/server.cfg",
+    "format": "cfg",
+    "bools": [
+      "true",
+      "false"
+    ],
+    "initial": {
+      "server.hostname": "Un serveur LANa",
+      "server.maxplayers": 20
+    }
+  },
+  "fields": [
+    {
+      "key": "server.hostname",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 64
+    },
+    {
+      "key": "server.description",
+      "label": "Description",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 200
+    },
+    {
+      "key": "server.maxplayers",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 20,
+      "group": "Serveur",
+      "min": 1,
+      "max": 200
+    },
+    {
+      "key": "server.pve",
+      "label": "Mode JcE",
+      "type": "bool",
+      "default": false,
+      "group": "Jeu"
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 28015,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "lana:query_port",
+      "label": "Port de requêtes",
+      "type": "int",
+      "default": 28017,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "lana:rcon_port",
+      "label": "Port RCON",
+      "type": "int",
+      "default": 28016,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "lana:rcon_password",
+      "label": "Mot de passe RCON",
+      "type": "text",
+      "default": "changez-moi",
+      "group": "Réseau",
+      "maxlen": 64,
+      "pattern": "^\\S+$"
+    },
+    {
+      "key": "lana:level",
+      "label": "Carte",
+      "type": "enum",
+      "default": "Procedural Map",
+      "group": "Monde",
+      "options": [
+        "Procedural Map",
+        "Barren",
+        "HapisIsland",
+        "CraggyIsland",
+        "SavasIsland"
+      ]
+    },
+    {
+      "key": "lana:seed",
+      "label": "Graine de la carte",
+      "type": "int",
+      "default": 12345,
+      "group": "Monde",
+      "min": 0,
+      "max": 2147483647
+    },
+    {
+      "key": "lana:worldsize",
+      "label": "Taille de la carte",
+      "type": "int",
+      "default": 3000,
+      "group": "Monde",
+      "min": 1000,
+      "max": 6000,
+      "hint": "Plus petit = plus léger"
+    }
+  ],
+  "untested": true
+}

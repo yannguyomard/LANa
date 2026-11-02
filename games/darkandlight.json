@@ -1,0 +1,128 @@
+{
+  "id": "darkandlight",
+  "name": "Dark and Light",
+  "install": {
+    "type": "steamcmd",
+    "appid": 630230,
+    "check_file": "DNL/Binaries/Win64/DNLServer.exe",
+    "write_files": {
+      "DNL/Binaries/Win64/steam_appid.txt": "529180"
+    }
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "DNL\\Binaries\\Win64\\DNLServer.exe",
+      "{map}?listen?SessionName={session}?MaxPlayers={max_players}?Port={port}?QueryPort={query_port}",
+      "-server",
+      "-log",
+      "-nosteamclient",
+      "-game"
+    ],
+    "cwd": ".",
+    "startup_seconds": 300
+  },
+  "requirements": {
+    "ram_gb_min": 6,
+    "ram_gb_recommended": 8,
+    "disk_gb": 15,
+    "note": "Serveur Windows uniquement. Le nom de session ne doit pas contenir d'espace."
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:port",
+      "offset": 1,
+      "proto": "udp",
+      "label": "Jeu (brut)"
+    },
+    {
+      "from": "lana:query_port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Requêtes Steam"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "DNL/Saved",
+  "config": {
+    "file": "DNL/Saved/Config/WindowsServer/GameUserSettings.ini",
+    "format": "ini",
+    "initial": {
+      "[ServerSettings]ServerAdminPassword": "{random}"
+    }
+  },
+  "fields": [
+    {
+      "key": "lana:session",
+      "label": "Nom du serveur (sans espace)",
+      "type": "text",
+      "default": "ServeurLANa",
+      "group": "Serveur",
+      "maxlen": 60,
+      "pattern": "^[A-Za-z0-9_\\-]+$"
+    },
+    {
+      "key": "lana:map",
+      "label": "Carte",
+      "type": "text",
+      "default": "DNL_ALL",
+      "group": "Serveur",
+      "maxlen": 80,
+      "pattern": "^[A-Za-z0-9_/\\-]+$"
+    },
+    {
+      "key": "lana:max_players",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 10,
+      "group": "Serveur",
+      "min": 1,
+      "max": 100
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 7777,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Ouvrir aussi le port suivant (UDP)"
+    },
+    {
+      "key": "lana:query_port",
+      "label": "Port de requêtes Steam",
+      "type": "int",
+      "default": 27015,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "[ServerSettings]ServerPassword",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "[ServerSettings]ServerAdminPassword",
+      "label": "Mot de passe administrateur",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    }
+  ],
+  "untested": true
+}

@@ -5,6 +5,7 @@ import sys
 import tempfile
 import time
 import unittest
+import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _home = tempfile.mkdtemp(prefix="lana-test-")
@@ -124,11 +125,22 @@ class AllGameDefinitionsTests(unittest.TestCase):
                 # L'adresse de connexion et les arguments de lancement doivent se remplir avec les défauts.
                 names_ = {f["key"]: f.get("default") for f in game["fields"] if "." not in f["key"] and ":" not in f["key"]}
                 names_.update(defaults)
+                names_.update({f["key"].replace(".", "_"): f.get("default") for f in game["fields"] if "." in f["key"] and ":" not in f["key"] and "[" not in f["key"]})
                 game["connect"].format(lan_ip="1.2.3.4", **names_)
-                for arg in game["run"]["command"]:
-                    arg.format(**defaults)
-                self.assertIn(game["run"]["runtime"], ("wine", "java", "native"))
-                self.assertIn(game["config"]["format"], ("json", "properties", "ue_options"))
+                if game.get("admin_url"):
+                    game["admin_url"].format(lan_ip="1.2.3.4", **names_)
+                for run in [game["run"]] + [game["run"][p] for p in ("linux", "windows") if p in game["run"]]:
+                    for arg in run["command"]:
+                        arg.format(**defaults)
+                    self.assertIn(run.get("runtime", game["run"]["runtime"]), ("wine", "java", "native"))
+                self.assertIn(game["config"]["format"], ("json", "properties", "ue_options", "ini", "cfg", "xml_props", "xml_elements", "arma", "none"))
+                spec = game["install"]
+                self.assertIn(spec["type"], ("steamcmd", "mojang", "download", "upload"))
+                self.assertTrue(spec["check_file"])
+                if spec["type"] == "steamcmd":
+                    self.assertIsInstance(spec["appid"], int)
+                if spec["type"] == "upload":
+                    self.assertTrue(spec.get("help"))
                 if "compat" in game:
                     self.assertIn(game["compat"]["level"], ("warn", "bad"))
                     self.assertTrue(game["compat"]["note"])
@@ -753,6 +765,204 @@ class WebPayloadTests(unittest.TestCase):
         payload = web.instance_payload(inst)   # appelle aussi la détection de l'adresse locale
         self.assertEqual(payload["id"], inst.id)
         self.assertIn("connect", payload)
+
+
+def fake_text_game(fmt, fields, **cfg):
+    return {"id": "fake" + fmt, "config": dict({"file": "conf.txt", "format": fmt}, **cfg), "fields": fields}
+
+
+class TextFormatsTests(unittest.TestCase):
+    """Formats .ini, .cfg, xml et arma : relecture typée, réécriture qui garde le reste du fichier."""
+
+    def roundtrip(self, game, content, changes):
+        folder = tempfile.mkdtemp(prefix="lana-fmt-")
+        self.addCleanup(shutil.rmtree, folder, True)
+        with open(os.path.join(folder, "conf.txt"), "w", encoding="utf-8") as fh:
+            fh.write(content)
+        data = config.read_file(game, folder)
+        before = dict(data)
+        data.update(changes)
+        config.write_file(game, folder, data)
+        with open(os.path.join(folder, "conf.txt"), encoding="utf-8") as fh:
+            return before, fh.read(), config.read_file(game, folder)
+
+    def test_ini_a_sections(self):
+        fields = [{"key": "[ServerSettings]XPMultiplier", "type": "float"}, {"key": "[ServerSettings]ServerPVE", "type": "bool"},
+                  {"key": "[SessionSettings]SessionName", "type": "text"}, {"key": "[/Script/Engine.GameSession]MaxPlayers", "type": "int"}]
+        before, text, after = self.roundtrip(fake_text_game("ini", fields),
+            "; commentaire\n[ServerSettings]\nXPMultiplier=2.000000\nServerPVE=False\nInconnu=7\n[SessionSettings]\nSessionName=Ancien\n",
+            {"[ServerSettings]ServerPVE": True, "[SessionSettings]SessionName": "Nouveau", "[/Script/Engine.GameSession]MaxPlayers": 12})
+        self.assertEqual(before["[ServerSettings]XPMultiplier"], 2.0)
+        self.assertIs(before["[ServerSettings]ServerPVE"], False)
+        self.assertIn("; commentaire", text)
+        self.assertIn("Inconnu=7", text)
+        self.assertIn("ServerPVE=True", text)
+        self.assertIn("[/Script/Engine.GameSession]\nMaxPlayers=12", text)
+        self.assertEqual(after["[SessionSettings]SessionName"], "Nouveau")
+        self.assertLess(text.index("ServerPVE=True"), text.index("[SessionSettings]"))
+
+    def test_ini_cle_ajoutee_dans_sa_section(self):
+        fields = [{"key": "[A]x", "type": "int"}, {"key": "[A]y", "type": "int"}]
+        _b, text, _a = self.roundtrip(fake_text_game("ini", fields), "[A]\nx=1\n[B]\nz=2\n", {"[A]y": 5})
+        self.assertLess(text.index("y=5"), text.index("[B]"))
+
+    def test_cfg_source_et_prefixe(self):
+        fields = [{"key": "hostname", "type": "text"}, {"key": "sv_lan", "type": "bool"}, {"key": "mp_timelimit", "type": "int"}]
+        before, text, after = self.roundtrip(fake_text_game("cfg", fields),
+            '// config\nhostname "Mon serveur" // nom\nsv_lan 0\nexec banned.cfg\n',
+            {"hostname": "Autre nom", "sv_lan": True, "mp_timelimit": 25})
+        self.assertEqual(before["hostname"], "Mon serveur")
+        self.assertIs(before["sv_lan"], False)
+        self.assertIn('hostname "Autre nom"', text)
+        self.assertIn("sv_lan 1", text)
+        self.assertIn("exec banned.cfg", text)
+        self.assertEqual(after["mp_timelimit"], 25)
+        _b, text, _a = self.roundtrip(fake_text_game("cfg", fields, prefix="set "), 'set hostname "A"\n', {"hostname": "B", "mp_timelimit": 9})
+        self.assertIn('set hostname "B"', text)
+        self.assertIn("set mp_timelimit 9", text)
+
+    def test_cfg_sans_guillemets_unturned(self):
+        fields = [{"key": "Name", "type": "text"}, {"key": "Port", "type": "int"}]
+        before, text, _a = self.roundtrip(fake_text_game("cfg", fields, quote=False), "Name Mon serveur\nPort 27015\n", {"Name": "Autre serveur"})
+        self.assertEqual(before["Name"], "Mon serveur")
+        self.assertIn("Name Autre serveur\n", text)
+
+    def test_xml_props_7dtd(self):
+        fields = [{"key": "ServerName", "type": "text"}, {"key": "ServerPort", "type": "int"}]
+        before, text, after = self.roundtrip(fake_text_game("xml_props", fields),
+            '<?xml version="1.0"?>\n<ServerSettings>\n\t<property name="ServerName" value="Vieux"/>\t<!-- nom -->\n\t<property name="ServerPort" value="26900"/>\n</ServerSettings>\n',
+            {"ServerName": "A & B", "UserDataFolder": "./UserData"})
+        self.assertEqual(before["ServerPort"], 26900)
+        self.assertIn('value="A &amp; B"', text)
+        self.assertIn("<!-- nom -->", text)
+        self.assertLess(text.index("UserDataFolder"), text.index("</ServerSettings>"))
+        self.assertEqual(after["ServerName"], "A & B")
+
+    def test_xml_elements_mta(self):
+        fields = [{"key": "servername", "type": "text"}, {"key": "ase", "type": "bool"}]
+        before, text, _a = self.roundtrip(fake_text_game("xml_elements", fields, bools=["1", "0"]),
+            "<config>\n    <servername>Default MTA Server</servername>\n    <ase>1</ase>\n</config>\n", {"servername": "LANa", "ase": False})
+        self.assertIs(before["ase"], True)
+        self.assertIn("    <servername>LANa</servername>", text)
+        self.assertIn("<ase>0</ase>", text)
+
+    def test_arma_dayz(self):
+        fields = [{"key": "hostname", "type": "text"}, {"key": "maxPlayers", "type": "int"}, {"key": "disable3rdPerson", "type": "bool"}]
+        before, text, _a = self.roundtrip(fake_text_game("arma", fields),
+            'hostname = "EXAMPLE";   // nom\nmaxPlayers = 60;\nmotd[] = {"a", "b"};\n', {"hostname": "LANa", "disable3rdPerson": True})
+        self.assertEqual(before["maxPlayers"], 60)
+        self.assertIn('hostname = "LANa";   // nom', text)
+        self.assertIn('motd[] = {"a", "b"};', text)
+        self.assertIn("disable3rdPerson = 1;", text)
+
+    def test_format_none(self):
+        game = fake_text_game("none", [])
+        self.assertEqual(config.read_file(game, "/inexistant"), {})
+        config.write_file(game, "/inexistant", {"x": 1})   # ne fait rien, ne lève rien
+
+
+class InstallSourcesTests(unittest.TestCase):
+    def test_resolution_des_telechargements(self):
+        game = {"id": "x", "run": {"runtime": "wine", "command": ["a"]},
+                "install": {"source": {"kind": "fxserver"}}}
+        original = runtime.fetch_json
+        runtime.fetch_json = lambda url: {"recommended_download": "https://exemple.test/%s/server.zip" % ("linux" if "/linux/" in url else "win32")}
+        try:
+            self.assertIn("win32", runtime.resolve_download(game) if not system.IS_LINUX else "win32")
+            game["install"]["source"] = {"kind": "github", "repo": "o/r", "assets": {"windows": "win-x86.zip", "linux": "linux-x86.tar.gz"}}
+            runtime.fetch_json = lambda url: {"assets": [{"name": "srv-linux-x86.tar.gz", "browser_download_url": "L"},
+                                                         {"name": "srv-win-x86.zip", "browser_download_url": "W"}]}
+            self.assertEqual(runtime.resolve_download(game), "L" if system.IS_LINUX else "W")
+            game["install"]["source"] = {"kind": "url", "urls": {"linux": "only-linux"}}
+            if not system.IS_LINUX:
+                with self.assertRaises(RuntimeError):
+                    runtime.resolve_download(game)
+        finally:
+            runtime.fetch_json = original
+
+    def test_fusion_sans_ecraser_la_config(self):
+        src, dest = tempfile.mkdtemp(), tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, src, True)
+        self.addCleanup(shutil.rmtree, dest, True)
+        os.makedirs(os.path.join(src, "sub"))
+        for rel, content in (("server.properties", "neuf"), ("bin", "neuf"), ("sub/a.txt", "neuf")):
+            with open(os.path.join(src, rel), "w") as fh:
+                fh.write(content)
+        with open(os.path.join(dest, "server.properties"), "w") as fh:
+            fh.write("réglages de l'utilisateur")
+        runtime._merge_tree(src, dest, {"server.properties"})
+        with open(os.path.join(dest, "server.properties")) as fh:
+            self.assertEqual(fh.read(), "réglages de l'utilisateur")
+        with open(os.path.join(dest, "sub", "a.txt")) as fh:
+            self.assertEqual(fh.read(), "neuf")
+
+    def test_variantes_linux_appliquees_au_chargement(self):
+        game = {"id": "x", "run": {"runtime": "wine", "command": ["a.exe"], "linux": {"runtime": "native", "command": ["./a"]}},
+                "install": {"check_file": "a.exe", "check_file_linux": "a"}, "config": {"file": "W/g.ini", "file_linux": "L/g.ini"},
+                "savegame": "w", "savegame_linux": "l"}
+        games.apply_platform(game)
+        linux = system.IS_LINUX
+        self.assertEqual(game["install"]["check_file"], "a" if linux else "a.exe")
+        self.assertEqual(game["config"]["file"], "L/g.ini" if linux else "W/g.ini")
+        self.assertEqual(game["savegame"], "l" if linux else "w")
+        self.assertNotIn("check_file_linux", game["install"])
+        self.assertEqual(games.run_spec(game)["command"], ["./a"] if linux else ["a.exe"])
+
+
+UPLOAD_GAME = {
+    "id": "fakeupload", "name": "Faux RAGE MP",
+    "install": {"type": "upload", "check_file": "srv/ragemp-server.exe", "help": "Déposez l'archive", "keep": ["conf.json"]},
+    "run": {"runtime": "native", "command": [sys.executable, "-c", "import time; time.sleep(300)"], "cwd": "."},
+    "requirements": {"ram_gb_min": 1, "ram_gb_recommended": 1, "disk_gb": 1},
+    "savegame": "packages",
+    "config": {"file": "conf.json", "format": "json", "initial": {"name": "x", "bind": "0.0.0.0"}, "enforce": {"bind": "0.0.0.0"}},
+    "fields": [{"key": "name", "label": "Nom", "type": "text", "default": "x", "group": "S"}],
+}
+games._cache["fakeupload"] = UPLOAD_GAME
+
+
+class InstanceIdTests(unittest.TestCase):
+    def test_identifiant_valide_pour_un_jeu_a_tiret_bas(self):
+        games._cache["fake_jeu"] = dict(FAKE, id="fake_jeu")
+        try:
+            inst = instances.Instance.create("fake_jeu")
+            self.addCleanup(shutil.rmtree, inst.dir, True)
+            self.assertEqual(inst.id, "fake-jeu")
+            self.assertEqual(inst.meta()["game"], "fake_jeu")
+        finally:
+            del games._cache["fake_jeu"]
+
+
+class UploadInstallTests(unittest.TestCase):
+    def make_zip(self, entries):
+        folder = tempfile.mkdtemp(prefix="lana-up-")
+        self.addCleanup(shutil.rmtree, folder, True)
+        path = os.path.join(folder, "files.zip")
+        with zipfile.ZipFile(path, "w") as zf:
+            for name, content in entries.items():
+                zf.writestr(name, content)
+        return path
+
+    def test_installation_par_archive(self):
+        inst = instances.Instance.create("fakeupload")
+        self.addCleanup(shutil.rmtree, inst.dir, True)
+        with self.assertRaises(instances.InstanceError):
+            inst.install()   # pas de téléchargement automatique pour ce jeu
+        archive = self.make_zip({"server-files/srv/ragemp-server.exe": "exe", "server-files/conf.json": '{"name": "fourni"}'})
+        inst.install_upload(archive, "files.zip")
+        self.assertTrue(inst.meta()["installed"])
+        self.assertTrue(os.path.exists(os.path.join(inst.server_dir, "srv", "ragemp-server.exe")))
+        self.assertEqual(inst.read_config()["name"], "fourni")   # la config fournie est gardée
+        self.assertEqual(config.read_file(inst.game, inst.server_dir)["bind"], "0.0.0.0")   # réglage imposé ajouté
+
+    def test_archive_sans_le_serveur_refusee(self):
+        inst = instances.Instance.create("fakeupload")
+        self.addCleanup(shutil.rmtree, inst.dir, True)
+        with self.assertRaises(instances.InstanceError):
+            inst.install_upload(self.make_zip({"autre.txt": "x"}), "files.zip")
+        with self.assertRaises(instances.InstanceError):
+            inst.install_upload(self.make_zip({"../evil/srv/ragemp-server.exe": "x"}), "files.zip")
+        self.assertFalse(inst.meta().get("installed"))
 
 
 class StaticFilesTests(unittest.TestCase):

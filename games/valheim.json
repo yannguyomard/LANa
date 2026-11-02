@@ -1,0 +1,142 @@
+{
+  "id": "valheim",
+  "name": "Valheim",
+  "install": {
+    "type": "steamcmd",
+    "appid": 896660,
+    "check_file": "valheim_server_Data",
+    "make_dirs": [
+      "saves"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "valheim_server.exe",
+      "-nographics",
+      "-batchmode",
+      "-name",
+      "{name}",
+      "-port",
+      "{port}",
+      "-world",
+      "{world}",
+      "-password",
+      "{password}",
+      "-public",
+      "{public}",
+      "-savedir",
+      "saves"
+    ],
+    "cwd": ".",
+    "startup_seconds": 90,
+    "env": {
+      "SteamAppId": "892970"
+    },
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./valheim_server.x86_64",
+        "-nographics",
+        "-batchmode",
+        "-name",
+        "{name}",
+        "-port",
+        "{port}",
+        "-world",
+        "{world}",
+        "-password",
+        "{password}",
+        "-public",
+        "{public}",
+        "-savedir",
+        "saves"
+      ],
+      "env": {
+        "SteamAppId": "892970",
+        "LD_LIBRARY_PATH": "./linux64"
+      }
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 2,
+    "ram_gb_recommended": 4,
+    "disk_gb": 2
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:port",
+      "offset": 1,
+      "proto": "udp",
+      "label": "Requêtes"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "saves",
+  "config": {
+    "file": "",
+    "format": "none",
+    "initial": {}
+  },
+  "fields": [
+    {
+      "key": "lana:name",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 60
+    },
+    {
+      "key": "lana:world",
+      "label": "Nom du monde",
+      "type": "text",
+      "default": "Dedicated",
+      "group": "Serveur",
+      "maxlen": 40,
+      "pattern": "^[A-Za-z0-9_\\-]+$"
+    },
+    {
+      "key": "lana:password",
+      "label": "Mot de passe",
+      "type": "text",
+      "default": "lana1234",
+      "group": "Serveur",
+      "maxlen": 64,
+      "pattern": "^\\S{5,}$",
+      "hint": "Au moins 5 caractères, et différent du nom du serveur (exigé par Valheim)"
+    },
+    {
+      "key": "lana:public",
+      "label": "Visible dans la liste publique",
+      "type": "enum",
+      "default": "0",
+      "group": "Serveur",
+      "options": [
+        "0",
+        "1"
+      ],
+      "labels": {
+        "0": "Non",
+        "1": "Oui"
+      }
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 2456,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Ouvrir aussi le port suivant (UDP)"
+    }
+  ],
+  "untested": true
+}

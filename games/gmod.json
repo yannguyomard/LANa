@@ -1,0 +1,193 @@
+{
+  "id": "gmod",
+  "name": "Garry's Mod",
+  "install": {
+    "type": "steamcmd",
+    "appid": 4020,
+    "check_file": "garrysmod/gameinfo.txt",
+    "make_dirs": [
+      "garrysmod/cfg"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "srcds.exe",
+      "-console",
+      "-game",
+      "garrysmod",
+      "-port",
+      "{port}",
+      "+maxplayers",
+      "{max_players}",
+      "+map",
+      "{map}",
+      "+gamemode",
+      "{gamemode}",
+      "+host_workshop_collection",
+      "{workshop}"
+    ],
+    "cwd": ".",
+    "startup_seconds": 30,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./srcds_run",
+        "-console",
+        "-game",
+        "garrysmod",
+        "-port",
+        "{port}",
+        "+maxplayers",
+        "{max_players}",
+        "+map",
+        "{map}",
+        "+gamemode",
+        "{gamemode}",
+        "+host_workshop_collection",
+        "{workshop}"
+      ]
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 2,
+    "ram_gb_recommended": 4,
+    "disk_gb": 5
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "RCON"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "garrysmod/cfg",
+  "config": {
+    "file": "garrysmod/cfg/server.cfg",
+    "format": "cfg",
+    "initial": {
+      "hostname": "Un serveur LANa",
+      "rcon_password": "{random}",
+      "sv_password": ""
+    }
+  },
+  "fields": [
+    {
+      "key": "hostname",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 64
+    },
+    {
+      "key": "sv_password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "rcon_password",
+      "label": "Mot de passe RCON (administration à distance)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "sv_lan",
+      "label": "Réseau local uniquement",
+      "type": "bool",
+      "default": false,
+      "group": "Serveur"
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 27015,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "lana:max_players",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 16,
+      "group": "Serveur",
+      "min": 2,
+      "max": 64
+    },
+    {
+      "key": "lana:map",
+      "label": "Carte de départ",
+      "type": "text",
+      "default": "gm_flatgrass",
+      "group": "Jeu",
+      "maxlen": 64,
+      "pattern": "^[A-Za-z0-9_\\-]+$"
+    },
+    {
+      "key": "lana:gamemode",
+      "label": "Mode de jeu",
+      "type": "enum",
+      "default": "sandbox",
+      "group": "Jeu",
+      "options": [
+        "sandbox",
+        "terrortown",
+        "darkrp",
+        "murder",
+        "prop_hunt"
+      ],
+      "hint": "Les modes autres que sandbox doivent être installés (Workshop)"
+    },
+    {
+      "key": "lana:workshop",
+      "label": "Collection Workshop (identifiant)",
+      "type": "text",
+      "default": "0",
+      "group": "Jeu",
+      "maxlen": 20,
+      "pattern": "^\\d+$"
+    },
+    {
+      "key": "sbox_maxprops",
+      "label": "Objets maximum par joueur",
+      "type": "int",
+      "default": 150,
+      "group": "Jeu",
+      "min": 0,
+      "max": 2000
+    },
+    {
+      "key": "sbox_noclip",
+      "label": "Vol libre (noclip)",
+      "type": "bool",
+      "default": true,
+      "group": "Jeu"
+    },
+    {
+      "key": "sbox_godmode",
+      "label": "Invincibilité",
+      "type": "bool",
+      "default": false,
+      "group": "Jeu"
+    }
+  ],
+  "untested": true
+}

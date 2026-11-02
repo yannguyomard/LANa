@@ -1,0 +1,211 @@
+{
+  "id": "ark_sa",
+  "name": "ARK: Survival Ascended",
+  "install": {
+    "type": "steamcmd",
+    "appid": 2430930,
+    "check_file": "ShooterGame/Binaries"
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "ShooterGame\\Binaries\\Win64\\ArkAscendedServer.exe",
+      "{map}?listen?SessionName={session}?Port={port}?QueryPort={query_port}?MaxPlayers={max_players}",
+      "-server",
+      "-log",
+      "-NoBattlEye"
+    ],
+    "cwd": ".",
+    "startup_seconds": 300
+  },
+  "requirements": {
+    "ram_gb_min": 12,
+    "ram_gb_recommended": 16,
+    "disk_gb": 30,
+    "note": "Serveur Windows uniquement, très gourmand."
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:port",
+      "offset": 1,
+      "proto": "udp",
+      "label": "Jeu (brut)"
+    },
+    {
+      "from": "lana:query_port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Requêtes Steam"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "ShooterGame/Saved/SavedArks",
+  "config": {
+    "file": "ShooterGame/Saved/Config/WindowsServer/GameUserSettings.ini",
+    "file_linux": "ShooterGame/Saved/Config/LinuxServer/GameUserSettings.ini",
+    "format": "ini",
+    "initial": {
+      "[ServerSettings]ServerAdminPassword": "{random}",
+      "[ServerSettings]ServerPassword": ""
+    }
+  },
+  "fields": [
+    {
+      "key": "lana:session",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 60,
+      "pattern": "^[^?\\\"]+$",
+      "hint": "Sans point d'interrogation ni guillemet"
+    },
+    {
+      "key": "[ServerSettings]ServerPassword",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "[ServerSettings]ServerAdminPassword",
+      "label": "Mot de passe administrateur",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "lana:map",
+      "label": "Carte",
+      "type": "enum",
+      "default": "TheIsland_WP",
+      "group": "Serveur",
+      "options": [
+        "TheIsland_WP",
+        "ScorchedEarth_WP",
+        "TheCenter_WP",
+        "Aberration_WP",
+        "Extinction_WP",
+        "Ragnarok_WP",
+        "Valguero_WP"
+      ]
+    },
+    {
+      "key": "lana:max_players",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 10,
+      "group": "Serveur",
+      "min": 1,
+      "max": 70
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 7777,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Ouvrir aussi le port suivant (UDP)"
+    },
+    {
+      "key": "lana:query_port",
+      "label": "Port de requêtes Steam",
+      "type": "int",
+      "default": 27015,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "[ServerSettings]ServerPVE",
+      "label": "Mode JcE (pas de combat entre joueurs)",
+      "type": "bool",
+      "default": false,
+      "group": "Jeu"
+    },
+    {
+      "key": "[ServerSettings]AllowThirdPersonPlayer",
+      "label": "Vue à la troisième personne",
+      "type": "bool",
+      "default": true,
+      "group": "Jeu"
+    },
+    {
+      "key": "[ServerSettings]ServerCrosshair",
+      "label": "Réticule",
+      "type": "bool",
+      "default": true,
+      "group": "Jeu"
+    },
+    {
+      "key": "[ServerSettings]ShowMapPlayerLocation",
+      "label": "Position sur la carte",
+      "type": "bool",
+      "default": true,
+      "group": "Jeu"
+    },
+    {
+      "key": "[ServerSettings]DifficultyOffset",
+      "label": "Difficulté (0 à 1)",
+      "type": "float",
+      "default": 0.2,
+      "group": "Jeu",
+      "min": 0.0,
+      "max": 1.0
+    },
+    {
+      "key": "[ServerSettings]XPMultiplier",
+      "label": "Multiplicateur d'expérience",
+      "type": "float",
+      "default": 1.0,
+      "group": "Jeu",
+      "min": 0.1,
+      "max": 20.0
+    },
+    {
+      "key": "[ServerSettings]TamingSpeedMultiplier",
+      "label": "Vitesse d'apprivoisement",
+      "type": "float",
+      "default": 1.0,
+      "group": "Jeu",
+      "min": 0.1,
+      "max": 50.0
+    },
+    {
+      "key": "[ServerSettings]HarvestAmountMultiplier",
+      "label": "Quantité récoltée",
+      "type": "float",
+      "default": 1.0,
+      "group": "Jeu",
+      "min": 0.1,
+      "max": 20.0
+    },
+    {
+      "key": "[ServerSettings]DayCycleSpeedScale",
+      "label": "Vitesse du cycle jour/nuit",
+      "type": "float",
+      "default": 1.0,
+      "group": "Jeu",
+      "min": 0.1,
+      "max": 10.0
+    }
+  ],
+  "compat": {
+    "level": "warn",
+    "note": "ARK: Survival Ascended n'existe qu'en serveur Windows et demande au moins 12 Go de RAM ; sous Wine, son fonctionnement n'est pas garanti."
+  },
+  "untested": true
+}

@@ -1,0 +1,102 @@
+{
+  "id": "redm",
+  "name": "RedM (Red Dead Redemption 2 roleplay)",
+  "install": {
+    "type": "download",
+    "source": {
+      "kind": "fxserver"
+    },
+    "check_file": "FXServer.exe",
+    "check_file_linux": "run.sh",
+    "executable": [
+      "run.sh"
+    ],
+    "make_dirs": [
+      "txData"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "FXServer.exe",
+      "+set",
+      "txAdminPort",
+      "{txadmin_port}",
+      "+set",
+      "txDataPath",
+      "txData"
+    ],
+    "cwd": ".",
+    "startup_seconds": 30,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./run.sh",
+        "+set",
+        "txAdminPort",
+        "{txadmin_port}",
+        "+set",
+        "txDataPath",
+        "txData"
+      ]
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 2,
+    "ram_gb_recommended": 4,
+    "disk_gb": 5,
+    "note": "Même serveur que FiveM : au premier démarrage, ouvrez txAdmin, choisissez RedM et une recette, et collez la clé de licence gratuite de portal.cfx.re. Les joueurs ont besoin de Red Dead Redemption 2."
+  },
+  "ports": [
+    {
+      "from": "lana:game_port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:game_port",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "Jeu (TCP)"
+    },
+    {
+      "from": "lana:txadmin_port",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "txAdmin (à ne pas ouvrir sur Internet)"
+    }
+  ],
+  "connect": "{lan_ip}:{game_port}",
+  "admin_url": "http://{lan_ip}:{txadmin_port}",
+  "savegame": "txData",
+  "config": {
+    "file": "",
+    "format": "none",
+    "initial": {}
+  },
+  "fields": [
+    {
+      "key": "lana:txadmin_port",
+      "label": "Port de txAdmin (panneau web)",
+      "type": "int",
+      "default": 40120,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Ouvrez txAdmin une fois le serveur démarré pour finir la configuration"
+    },
+    {
+      "key": "lana:game_port",
+      "label": "Port de jeu (réglé dans txAdmin)",
+      "type": "int",
+      "default": 30120,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Doit correspondre au port choisi dans txAdmin"
+    }
+  ],
+  "family": "redm",
+  "untested": true
+}

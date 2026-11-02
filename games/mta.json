@@ -1,0 +1,155 @@
+{
+  "id": "mta",
+  "name": "Multi Theft Auto: San Andreas",
+  "install": {
+    "type": "download",
+    "source": {
+      "kind": "url",
+      "urls": {
+        "windows": "https://mirror-cdn.multitheftauto.com/mtasa/main/mtasa-1.6.exe",
+        "linux": "https://linux.mtasa.com/dl/multitheftauto_linux_x64.tar.gz"
+      }
+    },
+    "archive": "nsis",
+    "install_subdir": "mta",
+    "archive_linux": "tar",
+    "strip": true,
+    "check_file": "mta/server/MTA Server.exe",
+    "check_file_linux": "mta-server64",
+    "executable": [
+      "mta-server64"
+    ],
+    "extras_linux": [
+      {
+        "urls": {
+          "linux": "https://linux.mtasa.com/dl/baseconfig.tar.gz"
+        },
+        "dest": "mods/deathmatch",
+        "strip": true
+      },
+      {
+        "urls": {
+          "linux": "https://mirror-cdn.multitheftauto.com/mtasa/resources/mtasa-resources-latest.zip"
+        },
+        "dest": "mods/deathmatch/resources"
+      }
+    ],
+    "keep": [
+      "mods/deathmatch/mtaserver.conf",
+      "mods/deathmatch/acl.xml"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "MTA Server.exe"
+    ],
+    "cwd": "mta/server",
+    "startup_seconds": 20,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./mta-server64",
+        "-n",
+        "-t",
+        "-u"
+      ],
+      "cwd": "."
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 1,
+    "ram_gb_recommended": 2,
+    "disk_gb": 2,
+    "note": "Sous Windows et macOS, LANa installe le paquet MTA complet (client et serveur, 130 Mo) en mode silencieux. Les joueurs ont besoin de GTA San Andreas."
+  },
+  "ports": [
+    {
+      "from": "serverport",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "httpport",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "Téléchargements (HTTP)"
+    },
+    {
+      "from": "serverport",
+      "offset": 123,
+      "proto": "udp",
+      "label": "Liste des serveurs (ASE)"
+    }
+  ],
+  "connect": "{lan_ip}:{serverport}",
+  "savegame": "mta/server/mods/deathmatch",
+  "savegame_linux": "mods/deathmatch",
+  "config": {
+    "file": "mta/server/mods/deathmatch/mtaserver.conf",
+    "file_linux": "mods/deathmatch/mtaserver.conf",
+    "format": "xml_elements",
+    "bools": [
+      "1",
+      "0"
+    ],
+    "initial": {}
+  },
+  "fields": [
+    {
+      "key": "servername",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 96
+    },
+    {
+      "key": "password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "maxplayers",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 32,
+      "group": "Serveur",
+      "min": 1,
+      "max": 4096
+    },
+    {
+      "key": "serverport",
+      "label": "Port",
+      "type": "int",
+      "default": 22003,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "httpport",
+      "label": "Port HTTP",
+      "type": "int",
+      "default": 22005,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "ase",
+      "label": "Visible dans la liste publique",
+      "type": "bool",
+      "default": true,
+      "group": "Serveur"
+    }
+  ],
+  "untested": true
+}

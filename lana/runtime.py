@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import platform
+import shutil
 import signal
 import subprocess
 import tarfile
@@ -11,7 +12,7 @@ import time
 import urllib.request
 import zipfile
 
-from . import machine, paths, system
+from . import games, machine, paths, system
 
 STEAMCMD_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
 MOJANG_MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
@@ -163,28 +164,45 @@ def windows_path(path):
     return "Z:" + path.replace("/", "\\")
 
 
-def steamcmd_install(game, server_dir, prefix, job):
-    """Installe ou met à jour un serveur via SteamCMD sous Wine.
+def steamcmd_install(game, server_dir, prefix, job, account=None):
+    """Installe ou met à jour un serveur via SteamCMD (sous Wine hors Windows).
 
     SteamCMD se met à jour lui-même au premier lancement puis s'arrête : on relance
     jusqu'à ce que les fichiers du jeu soient là.
+    Options de `install` : `beta` (branche), `mod` (jeux GoldSrc : +app_set_config <appid> mod <nom>),
+    `login: "account"` (le serveur exige un compte Steam qui possède le jeu ; `account` = {user, password, guard}).
+    Le mot de passe ne sert qu'à cette commande : il n'est ni enregistré ni écrit dans le journal.
     """
     spec = game["install"]
     exe = ensure_steamcmd(job)
     os.makedirs(server_dir, exist_ok=True)
     check = os.path.join(server_dir, spec["check_file"])
+    login = ["+login", "anonymous"]
+    if spec.get("login") == "account":
+        if not account or not account.get("user") or not account.get("password"):
+            raise RuntimeError("Ce serveur s'installe avec un compte Steam qui possède le jeu : identifiant et mot de passe requis.")
+        login = ["+login", account["user"], account["password"]] + ([account["guard"]] if account.get("guard") else [])
+    appid = str(spec["appid"])
+    update = ["+app_update", appid] + (["-beta", spec["beta"]] if spec.get("beta") else []) + ["validate"]
     for attempt in range(1, 4):
         job.log("SteamCMD, passage %d : téléchargement du serveur (plusieurs Go)…" % attempt)
         if system.IS_WINDOWS:
             cmd, env, folder = [exe], dict(os.environ), server_dir
         else:
             cmd, env, folder = [machine.find_tool("wine"), exe], wine_env(prefix), windows_path(server_dir)
-        cmd += ["+force_install_dir", folder, "+login", "anonymous", "+app_update", str(spec["appid"]), "validate", "+quit"]
+        if games.platform(game) == "linux":
+            cmd += ["+@sSteamCmdForcePlatformType", "linux"]
+        cmd += ["+force_install_dir", folder] + login
+        if spec.get("mod"):
+            cmd += ["+app_set_config", appid, "mod", spec["mod"]]
+        cmd += update + ["+quit"]
         proc = subprocess.Popen(cmd, cwd=os.path.dirname(exe), env=env,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
         last = ""
         for line in proc.stdout:
             line = line.strip()
+            if account and account.get("password") and account["password"] in line:
+                line = line.replace(account["password"], "********")
             # Une ligne de progression par pas de 5 % suffit.
             if line.startswith("[") and "%" in line.split("]")[0]:
                 tag = line[:5]
@@ -193,10 +211,110 @@ def steamcmd_install(game, server_dir, prefix, job):
                 last = tag
             if line:
                 job.log(line)
+            if "Steam Guard" in line or "Two-factor" in line:
+                job.log("Steam demande une confirmation : validez dans l'application Steam, ou relancez avec le code reçu.")
         proc.wait()
         if os.path.exists(check):
             return
-    raise RuntimeError("SteamCMD n'a pas installé %s après 3 essais." % spec["check_file"])
+        if spec.get("login") == "account" and attempt == 1 and proc.returncode not in (0, None):
+            break   # identifiants refusés : inutile d'insister (et d'exposer le compte à un blocage)
+    raise RuntimeError("SteamCMD n'a pas installé %s." % spec["check_file"])
+
+
+# ---------- téléchargements directs (hors Steam) ----------
+
+def resolve_download(game):
+    """URL de l'archive du serveur pour cette plateforme, selon `install.source`."""
+    source = game["install"]["source"]
+    plat = games.platform(game)
+    kind = source["kind"]
+    if kind == "url":
+        url = source["urls"].get(plat)
+    elif kind == "github":
+        release = fetch_json("https://api.github.com/repos/%s/releases/latest" % source["repo"])
+        suffix = source["assets"].get(plat)
+        url = next((a["browser_download_url"] for a in release.get("assets", []) if suffix and a["name"].endswith(suffix)), None)
+    elif kind == "fxserver":   # FiveM / RedM : build « recommandée » publiée par Cfx.re
+        info = fetch_json("https://changelogs-live.fivem.net/api/changelog/versions/%s/server" % ("linux" if plat == "linux" else "win32"))
+        url = info.get("recommended_download")
+    elif kind == "bedrock":   # Minecraft Bedrock : liens officiels de Mojang
+        links = fetch_json("https://net-secondary.web.minecraft-services.net/api/v1.0/download/links")["result"]["links"]
+        wanted = "serverBedrockLinux" if plat == "linux" else "serverBedrockWindows"
+        url = next((l["downloadUrl"] for l in links if l["downloadType"] == wanted), None)
+    else:
+        raise RuntimeError("Source de téléchargement inconnue : %s" % kind)
+    if not url:
+        raise RuntimeError("Aucun serveur publié pour cette plateforme (%s)." % plat)
+    return url
+
+
+def _merge_tree(src, dest, keep):
+    """Copie src dans dest ; les fichiers de `keep` déjà présents (configs de l'utilisateur) ne sont pas écrasés."""
+    for root, _dirs, files in os.walk(src):
+        rel = os.path.relpath(root, src)
+        target = os.path.normpath(os.path.join(dest, rel))
+        os.makedirs(target, exist_ok=True)
+        for name in files:
+            relfile = os.path.normpath(os.path.join(rel, name)).replace(os.sep, "/")
+            out = os.path.join(target, name)
+            if relfile in keep and os.path.exists(out):
+                continue
+            os.replace(os.path.join(root, name), out)
+
+
+def download_install(game, server_dir, prefix, job):
+    """Télécharge et extrait un serveur distribué hors Steam (zip, tar.gz, tar.xz, ou installeur NSIS)."""
+    spec = game["install"]
+    url = resolve_download(game)
+    os.makedirs(server_dir, exist_ok=True)
+    work = os.path.join(os.path.dirname(server_dir), "download")
+    if os.path.isdir(work):
+        shutil.rmtree(work)
+    os.makedirs(work)
+    name = url.split("?")[0].rsplit("/", 1)[-1] or "archive"
+    archive = os.path.join(work, name)
+    try:
+        download(url, archive, job, name)
+        if spec.get("archive") == "nsis":   # installeur Windows silencieux (/S), dossier imposé (/D=)
+            target = os.path.join(server_dir, spec.get("install_subdir", "app"))
+            cmd = [archive, "/S", "/D=" + (target if system.IS_WINDOWS else windows_path(target))]
+            if not system.IS_WINDOWS:
+                cmd = [machine.find_tool("wine")] + cmd
+            job.log("Installation silencieuse de %s…" % name)
+            subprocess.run(cmd, env=None if system.IS_WINDOWS else wine_env(prefix), capture_output=True, timeout=1800)
+        else:
+            staging = os.path.join(work, "x")
+            os.makedirs(staging)
+            job.log("Extraction…")
+            _safe_extract(archive, staging)
+            top = os.listdir(staging)
+            if spec.get("strip") and len(top) == 1 and os.path.isdir(os.path.join(staging, top[0])):
+                staging = os.path.join(staging, top[0])
+            _merge_tree(staging, server_dir, set(spec.get("keep", [])))
+        # Compléments (ex. configuration de base et ressources de MTA sous Linux), extraits dans un sous-dossier.
+        for extra in spec.get("extras", []):
+            url = extra["urls"].get(games.platform(game))
+            if not url:
+                continue
+            name = url.rsplit("/", 1)[-1]
+            archive = os.path.join(work, name)
+            download(url, archive, job, name)
+            staging = os.path.join(work, "extra-" + name)
+            os.makedirs(staging)
+            _safe_extract(archive, staging)
+            top = os.listdir(staging)
+            if extra.get("strip") and len(top) == 1 and os.path.isdir(os.path.join(staging, top[0])):
+                staging = os.path.join(staging, top[0])
+            _merge_tree(staging, os.path.join(server_dir, extra.get("dest", "")), set(spec.get("keep", [])))
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    for rel in spec.get("executable", []):   # tar conserve les droits, pas zip
+        path = os.path.join(server_dir, rel)
+        if os.path.exists(path):
+            os.chmod(path, os.stat(path).st_mode | 0o755)
+    if not os.path.exists(os.path.join(server_dir, spec["check_file"])):
+        raise RuntimeError("Le téléchargement ne contient pas %s." % spec["check_file"])
+    return {"source_url": url}
 
 
 def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0):
@@ -204,7 +322,7 @@ def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0)
 
     `settings` remplit les {jetons} de la commande (ex. {memory_mb} pour la mémoire de Java).
     """
-    run = game["run"]
+    run = games.run_spec(game)
     cmd = [a.format(**(settings or {})) if "{" in a else a for a in run["command"]]
     env = dict(os.environ)
     cwd = os.path.join(server_dir, run.get("cwd", "."))

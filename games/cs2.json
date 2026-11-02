@@ -1,0 +1,207 @@
+{
+  "id": "cs2",
+  "name": "Counter-Strike 2",
+  "install": {
+    "type": "steamcmd",
+    "appid": 730,
+    "check_file": "game/csgo/gameinfo.gi"
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "game\\bin\\win64\\cs2.exe",
+      "-dedicated",
+      "-console",
+      "-usercon",
+      "-port",
+      "{port}",
+      "-maxplayers",
+      "{max_players}",
+      "+game_type",
+      "{game_type}",
+      "+game_mode",
+      "{game_mode}",
+      "+map",
+      "{map}",
+      "+sv_setsteamaccount",
+      "{gslt}"
+    ],
+    "cwd": ".",
+    "startup_seconds": 60,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "game/bin/linuxsteamrt64/cs2",
+        "-dedicated",
+        "-console",
+        "-usercon",
+        "-port",
+        "{port}",
+        "-maxplayers",
+        "{max_players}",
+        "+game_type",
+        "{game_type}",
+        "+game_mode",
+        "{game_mode}",
+        "+map",
+        "{map}",
+        "+sv_setsteamaccount",
+        "{gslt}"
+      ]
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 4,
+    "ram_gb_recommended": 8,
+    "disk_gb": 60,
+    "note": "Téléchargement d'environ 60 Go."
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "RCON"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "game/csgo/cfg",
+  "config": {
+    "file": "game/csgo/cfg/server.cfg",
+    "format": "cfg",
+    "initial": {
+      "hostname": "Un serveur LANa",
+      "rcon_password": "{random}"
+    }
+  },
+  "fields": [
+    {
+      "key": "hostname",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 64
+    },
+    {
+      "key": "sv_password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "rcon_password",
+      "label": "Mot de passe RCON",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "sv_lan",
+      "label": "Réseau local uniquement",
+      "type": "bool",
+      "default": false,
+      "group": "Serveur"
+    },
+    {
+      "key": "mp_maxrounds",
+      "label": "Manches maximum",
+      "type": "int",
+      "default": 24,
+      "group": "Serveur",
+      "min": 1,
+      "max": 60
+    },
+    {
+      "key": "bot_quota",
+      "label": "Bots",
+      "type": "int",
+      "default": 0,
+      "group": "Jeu",
+      "min": 0,
+      "max": 20
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 27015,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "lana:max_players",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 10,
+      "group": "Serveur",
+      "min": 2,
+      "max": 64
+    },
+    {
+      "key": "lana:game_type",
+      "label": "Type de partie",
+      "type": "enum",
+      "default": "0",
+      "group": "Jeu",
+      "options": [
+        "0",
+        "1"
+      ],
+      "labels": {
+        "0": "Classique",
+        "1": "Arsenal / Démolition"
+      }
+    },
+    {
+      "key": "lana:game_mode",
+      "label": "Mode",
+      "type": "enum",
+      "default": "1",
+      "group": "Jeu",
+      "options": [
+        "0",
+        "1",
+        "2"
+      ],
+      "labels": {
+        "0": "Décontracté",
+        "1": "Compétitif",
+        "2": "Wingman"
+      }
+    },
+    {
+      "key": "lana:map",
+      "label": "Carte",
+      "type": "text",
+      "default": "de_dust2",
+      "group": "Jeu",
+      "maxlen": 64,
+      "pattern": "^[A-Za-z0-9_\\-]+$"
+    },
+    {
+      "key": "lana:gslt",
+      "label": "Jeton de serveur Steam (GSLT)",
+      "type": "text",
+      "default": "",
+      "group": "Réseau",
+      "required": false,
+      "maxlen": 64,
+      "hint": "Requis pour un serveur visible sur Internet : steamcommunity.com/dev/managegameservers (app 730)"
+    }
+  ],
+  "untested": true
+}

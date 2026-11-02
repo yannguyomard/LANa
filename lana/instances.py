@@ -92,7 +92,7 @@ class Instance:
     @classmethod
     def create(cls, game_id, name=None):
         game = games.get(game_id)
-        base, n = game_id, 1
+        base, n = game_id.replace("_", "-"), 1   # identifiant de serveur : lettres, chiffres et tirets
         instance_id = base
         while os.path.exists(os.path.join(paths.INSTANCES_DIR, instance_id)):
             n += 1
@@ -104,12 +104,7 @@ class Instance:
                        "created": time.time()}, fh)
         return inst
 
-    def install(self, accept_eula=False):
-        """Lance l'installation en arrière-plan ; retourne la tâche.
-
-        Si le jeu impose un contrat de licence (`eula`), l'utilisateur doit l'avoir accepté explicitement :
-        LANa n'accepte jamais un contrat à sa place.
-        """
+    def _check_installable(self, accept_eula):
         game = self.game
         eula = game.get("eula")
         if eula and not accept_eula:
@@ -122,35 +117,106 @@ class Instance:
         if missing:
             raise InstanceError("Outil manquant : %s. Installez-le puis réessayez." % ", ".join(missing))
 
+    def install(self, accept_eula=False, account=None):
+        """Lance l'installation en arrière-plan ; retourne la tâche.
+
+        Si le jeu impose un contrat de licence (`eula`), l'utilisateur doit l'avoir accepté explicitement :
+        LANa n'accepte jamais un contrat à sa place. `account` : identifiants Steam pour les serveurs qui exigent
+        un compte possédant le jeu (jamais enregistrés). Les jeux à fichiers fournis par l'utilisateur
+        (`install.type == "upload"`) s'installent avec `install_upload`.
+        """
+        game = self.game
+        self._check_installable(accept_eula)
+        spec = game["install"]
+        if spec["type"] == "upload":
+            raise InstanceError("Ce jeu s'installe en déposant l'archive de ses fichiers serveur : %s" % spec.get("help", ""))
+        if spec.get("login") == "account" and not (account and account.get("user") and account.get("password")):
+            raise InstanceError("Ce serveur exige un compte Steam qui possède le jeu : renseignez identifiant et mot de passe.")
+
         def work(job):
-            spec = game["install"]
-            if system.uses_wine(game["run"]["runtime"]):
+            if system.uses_wine(games.run_spec(game)["runtime"]):
                 runtime.init_prefix(self.prefix, job)
             extra = {}
             if spec["type"] == "steamcmd":
-                runtime.steamcmd_install(game, self.server_dir, self.prefix, job)
+                runtime.steamcmd_install(game, self.server_dir, self.prefix, job, account=account)
             elif spec["type"] == "mojang":
                 extra = runtime.mojang_install(game, self.server_dir, job)
                 job.log("Serveur Minecraft %s installé." % extra["version"])
+            elif spec["type"] == "download":
+                extra = runtime.download_install(game, self.server_dir, self.prefix, job)
             else:
                 raise RuntimeError("Type d'installation non géré : %s" % spec["type"])
-            if not os.path.exists(os.path.join(self.server_dir, game["config"]["file"])):
-                config.write_initial(game, self.server_dir)
-                job.log("Configuration initiale créée.")
-            for name, content in spec.get("write_files", {}).items():   # fichiers que le jeu attend à côté de l'exécutable
-                with open(os.path.join(self.server_dir, name), "w", encoding="utf-8") as fh:
-                    fh.write(content)
-            if eula:
-                with open(os.path.join(self.server_dir, eula["file"]), "w", encoding="utf-8") as fh:
-                    fh.write(eula["content"])
-                job.log("Contrat de licence accepté par l'utilisateur (%s)." % eula["url"])
-            meta = self.meta()
-            meta.update(extra)
-            meta["installed"] = True
-            self._save_meta(meta)
-            job.log("Installation terminée.")
+            self._finish_install(job.log, extra, accept_eula)
 
         return jobs.start("Installation de %s" % game["name"], work)
+
+    def _finish_install(self, log, extra, accept_eula):
+        """Après la copie des fichiers du jeu : configuration initiale, fichiers attendus, contrat, état."""
+        game, spec = self.game, self.game["install"]
+        cfg = game["config"]
+        if cfg["format"] != "none" and not os.path.exists(os.path.join(self.server_dir, cfg["file"])):
+            config.write_initial(game, self.server_dir)
+            log("Configuration initiale créée.")
+        if cfg.get("enforce"):   # réglages indispensables à LANa, même dans une config fournie (ex. écouter le réseau)
+            data = config.read_file(game, self.server_dir)
+            if any(data.get(k) != v for k, v in cfg["enforce"].items()):
+                data.update(cfg["enforce"])
+                config.write_file(game, self.server_dir, data)
+                log("Réglages réseau ajustés : %s." % ", ".join("%s=%s" % kv for kv in cfg["enforce"].items()))
+        for name, content in spec.get("write_files", {}).items():   # fichiers que le jeu attend à côté de l'exécutable
+            path = os.path.join(self.server_dir, name)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(content)
+        for folder in spec.get("make_dirs", []):
+            os.makedirs(os.path.join(self.server_dir, folder), exist_ok=True)
+        eula = game.get("eula")
+        if eula and accept_eula:
+            with open(os.path.join(self.server_dir, eula["file"]), "w", encoding="utf-8") as fh:
+                fh.write(eula["content"])
+            log("Contrat de licence accepté par l'utilisateur (%s)." % eula["url"])
+        meta = self.meta()
+        meta.update(extra)
+        meta["installed"] = True
+        self._save_meta(meta)
+        log("Installation terminée.")
+
+    def install_upload(self, tmp_path, filename, accept_eula=False):
+        """Installe un serveur à partir de l'archive de ses fichiers, fournie par l'utilisateur (zip ou tar)."""
+        game, spec = self.game, self.game["install"]
+        if spec["type"] != "upload":
+            raise InstanceError("Ce jeu s'installe automatiquement")
+        self._check_installable(accept_eula)
+        if not (zipfile.is_zipfile(tmp_path) or tarfile.is_tarfile(tmp_path)):
+            raise InstanceError("Format non reconnu : déposez une archive .zip ou .tar.gz des fichiers serveur")
+        staging = os.path.join(self.dir, "upload")
+        shutil.rmtree(staging, ignore_errors=True)
+        os.makedirs(staging)
+        try:
+            try:
+                runtime._safe_extract(tmp_path, staging)
+            except (RuntimeError, tarfile.TarError, zipfile.BadZipFile) as ex:
+                raise InstanceError("Archive refusée : %s" % ex)
+            # Les fichiers peuvent être à la racine de l'archive ou dans un dossier : on cherche le fichier témoin.
+            found = None
+            for root, _dirs, files in os.walk(staging):
+                if os.path.basename(spec["check_file"]) in files and os.path.exists(os.path.join(root, os.path.basename(spec["check_file"]))):
+                    base = root[:len(root) - len(os.path.dirname(spec["check_file"]))] if os.path.dirname(spec["check_file"]) else root
+                    if os.path.exists(os.path.join(base, spec["check_file"])):
+                        found = base
+                        break
+            if not found:
+                raise InstanceError("L'archive « %s » ne contient pas %s" % (filename, spec["check_file"]))
+            os.makedirs(self.server_dir, exist_ok=True)
+            runtime._merge_tree(found, self.server_dir, set(spec.get("keep", [])))
+        finally:
+            shutil.rmtree(staging, ignore_errors=True)
+        for rel in spec.get("executable", []):
+            path = os.path.join(self.server_dir, rel)
+            if os.path.exists(path):
+                os.chmod(path, os.stat(path).st_mode | 0o755)
+        self._finish_install(lambda _line: None, {"source": filename}, accept_eula)
+        return "Fichiers serveur installés"
 
     # ---------- démarrage et arrêt ----------
 
@@ -178,7 +244,7 @@ class Instance:
                 raise InstanceError("Le serveur est déjà arrêté")
             if backup and os.path.isdir(os.path.join(self.server_dir, self.game["savegame"])):
                 self._backup_unlocked("avant-arret")
-            run = self.game["run"]
+            run = games.run_spec(self.game)
             if not runtime.stop_group(self._pgid(), system.uses_wine(run["runtime"]), self.prefix,
                                       sig=runtime.stop_signal(run.get("stop_signal", "TERM"))):
                 raise InstanceError("Le serveur ne s'est pas arrêté")

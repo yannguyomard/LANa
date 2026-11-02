@@ -1,0 +1,237 @@
+{
+  "id": "sevendays",
+  "name": "7 Days to Die",
+  "install": {
+    "type": "steamcmd",
+    "appid": 294420,
+    "check_file": "7DaysToDieServer_Data",
+    "make_dirs": [
+      "logs",
+      "UserData"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "7DaysToDieServer.exe",
+      "-quit",
+      "-batchmode",
+      "-nographics",
+      "-configfile=serverconfig.xml",
+      "-dedicated",
+      "-logfile",
+      "logs\\output.log"
+    ],
+    "cwd": ".",
+    "startup_seconds": 180,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./7DaysToDieServer.x86_64",
+        "-quit",
+        "-batchmode",
+        "-nographics",
+        "-configfile=serverconfig.xml",
+        "-dedicated",
+        "-logfile",
+        "logs/output.log"
+      ],
+      "env": {
+        "LD_LIBRARY_PATH": "."
+      }
+    }
+  },
+  "log_file": "logs/output.log",
+  "requirements": {
+    "ram_gb_min": 6,
+    "ram_gb_recommended": 12,
+    "disk_gb": 15,
+    "note": "Génération du monde longue au premier démarrage."
+  },
+  "ports": [
+    {
+      "from": "ServerPort",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "Jeu (TCP)"
+    },
+    {
+      "from": "ServerPort",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "ServerPort",
+      "offset": 1,
+      "proto": "udp",
+      "label": "Jeu (2)"
+    },
+    {
+      "from": "ServerPort",
+      "offset": 2,
+      "proto": "udp",
+      "label": "Jeu (3)"
+    }
+  ],
+  "connect": "{lan_ip}:{ServerPort}",
+  "savegame": "UserData/Saves",
+  "config": {
+    "file": "serverconfig.xml",
+    "format": "xml_props",
+    "initial": {
+      "UserDataFolder": "./UserData",
+      "ServerName": "Un serveur LANa"
+    }
+  },
+  "fields": [
+    {
+      "key": "ServerName",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 60
+    },
+    {
+      "key": "ServerDescription",
+      "label": "Description",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 200
+    },
+    {
+      "key": "ServerPassword",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "ServerMaxPlayerCount",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 8,
+      "group": "Serveur",
+      "min": 1,
+      "max": 64
+    },
+    {
+      "key": "ServerPort",
+      "label": "Port",
+      "type": "int",
+      "default": 26900,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "TCP et UDP, plus les deux ports UDP suivants"
+    },
+    {
+      "key": "ServerVisibility",
+      "label": "Visibilité",
+      "type": "enum",
+      "default": "2",
+      "group": "Serveur",
+      "options": [
+        "0",
+        "1",
+        "2"
+      ],
+      "labels": {
+        "0": "Non listé",
+        "1": "Amis seulement",
+        "2": "Publique"
+      }
+    },
+    {
+      "key": "GameWorld",
+      "label": "Monde",
+      "type": "enum",
+      "default": "Navezgane",
+      "group": "Monde",
+      "options": [
+        "Navezgane",
+        "RWG"
+      ],
+      "labels": {
+        "Navezgane": "Navezgane (carte fixe)",
+        "RWG": "Généré aléatoirement"
+      }
+    },
+    {
+      "key": "WorldGenSeed",
+      "label": "Graine (monde aléatoire)",
+      "type": "text",
+      "default": "lana",
+      "group": "Monde",
+      "maxlen": 40
+    },
+    {
+      "key": "WorldGenSize",
+      "label": "Taille (monde aléatoire)",
+      "type": "int",
+      "default": 6144,
+      "group": "Monde",
+      "min": 6144,
+      "max": 10240
+    },
+    {
+      "key": "GameName",
+      "label": "Nom de la partie",
+      "type": "text",
+      "default": "Ma partie",
+      "group": "Monde",
+      "maxlen": 40
+    },
+    {
+      "key": "GameDifficulty",
+      "label": "Difficulté (0 à 5)",
+      "type": "int",
+      "default": 1,
+      "group": "Serveur",
+      "min": 0,
+      "max": 5
+    },
+    {
+      "key": "DayNightLength",
+      "label": "Durée d'un jour (minutes réelles)",
+      "type": "int",
+      "default": 60,
+      "group": "Serveur",
+      "min": 10,
+      "max": 240
+    },
+    {
+      "key": "BloodMoonFrequency",
+      "label": "Fréquence des lunes de sang (jours)",
+      "type": "int",
+      "default": 7,
+      "group": "Serveur",
+      "min": 0,
+      "max": 30
+    },
+    {
+      "key": "LootAbundance",
+      "label": "Abondance du butin (%)",
+      "type": "int",
+      "default": 100,
+      "group": "Serveur",
+      "min": 25,
+      "max": 300
+    },
+    {
+      "key": "XPMultiplier",
+      "label": "Expérience (%)",
+      "type": "int",
+      "default": 100,
+      "group": "Serveur",
+      "min": 25,
+      "max": 300
+    }
+  ],
+  "untested": true
+}

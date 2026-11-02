@@ -1,0 +1,163 @@
+{
+  "id": "tf2",
+  "name": "Team Fortress 2",
+  "install": {
+    "type": "steamcmd",
+    "appid": 232250,
+    "check_file": "tf/gameinfo.txt",
+    "make_dirs": [
+      "tf/cfg"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "srcds.exe",
+      "-console",
+      "-game",
+      "tf",
+      "-port",
+      "{port}",
+      "+maxplayers",
+      "{max_players}",
+      "+map",
+      "{map}"
+    ],
+    "cwd": ".",
+    "startup_seconds": 30,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./srcds_run",
+        "-console",
+        "-game",
+        "tf",
+        "-port",
+        "{port}",
+        "+maxplayers",
+        "{max_players}",
+        "+map",
+        "{map}"
+      ]
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 2,
+    "ram_gb_recommended": 4,
+    "disk_gb": 15
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "RCON"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "tf/cfg",
+  "config": {
+    "file": "tf/cfg/server.cfg",
+    "format": "cfg",
+    "initial": {
+      "hostname": "Un serveur LANa",
+      "rcon_password": "{random}",
+      "sv_password": ""
+    }
+  },
+  "fields": [
+    {
+      "key": "hostname",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 64
+    },
+    {
+      "key": "sv_password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "rcon_password",
+      "label": "Mot de passe RCON (administration à distance)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "sv_lan",
+      "label": "Réseau local uniquement",
+      "type": "bool",
+      "default": false,
+      "group": "Serveur"
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 27015,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "lana:max_players",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 24,
+      "group": "Serveur",
+      "min": 2,
+      "max": 64
+    },
+    {
+      "key": "lana:map",
+      "label": "Carte de départ",
+      "type": "text",
+      "default": "ctf_2fort",
+      "group": "Jeu",
+      "maxlen": 64,
+      "pattern": "^[A-Za-z0-9_\\-]+$"
+    },
+    {
+      "key": "mp_timelimit",
+      "label": "Durée d'une carte (min)",
+      "type": "int",
+      "default": 30,
+      "group": "Jeu",
+      "min": 0,
+      "max": 180
+    },
+    {
+      "key": "mp_maxrounds",
+      "label": "Manches maximum",
+      "type": "int",
+      "default": 0,
+      "group": "Jeu",
+      "min": 0,
+      "max": 50
+    },
+    {
+      "key": "tf_weapon_criticals",
+      "label": "Coups critiques aléatoires",
+      "type": "bool",
+      "default": true,
+      "group": "Jeu"
+    }
+  ],
+  "untested": true
+}

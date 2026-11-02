@@ -1,0 +1,182 @@
+{
+  "id": "minecraft_bedrock",
+  "name": "Minecraft (Bedrock)",
+  "install": {
+    "type": "download",
+    "source": {
+      "kind": "bedrock"
+    },
+    "check_file": "bedrock_server.exe",
+    "check_file_linux": "bedrock_server",
+    "executable": [
+      "bedrock_server"
+    ],
+    "keep": [
+      "server.properties",
+      "allowlist.json",
+      "permissions.json"
+    ]
+  },
+  "eula": {
+    "label": "Contrat de licence de Minecraft et politique de confidentialité",
+    "url": "https://www.minecraft.net/eula",
+    "file": ".eula-acceptee",
+    "content": "CLUF Minecraft et politique de confidentialité acceptés par l'utilisateur.\n"
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "bedrock_server.exe"
+    ],
+    "cwd": ".",
+    "startup_seconds": 30,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./bedrock_server"
+      ],
+      "env": {
+        "LD_LIBRARY_PATH": "."
+      }
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 2,
+    "ram_gb_recommended": 4,
+    "disk_gb": 1
+  },
+  "ports": [
+    {
+      "from": "server-port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu (IPv4)"
+    }
+  ],
+  "connect": "{lan_ip}:{server-port}",
+  "savegame": "worlds",
+  "config": {
+    "file": "server.properties",
+    "format": "properties",
+    "initial": {
+      "server-name": "Un serveur LANa"
+    }
+  },
+  "fields": [
+    {
+      "key": "server-name",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 60
+    },
+    {
+      "key": "max-players",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 10,
+      "group": "Serveur",
+      "min": 1,
+      "max": 100
+    },
+    {
+      "key": "server-port",
+      "label": "Port",
+      "type": "int",
+      "default": 19132,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Port à ouvrir sur la box"
+    },
+    {
+      "key": "online-mode",
+      "label": "Vérifier les comptes Xbox",
+      "type": "bool",
+      "default": true,
+      "group": "Serveur"
+    },
+    {
+      "key": "gamemode",
+      "label": "Mode de jeu",
+      "type": "enum",
+      "default": "survival",
+      "group": "Jeu",
+      "options": [
+        "survival",
+        "creative",
+        "adventure"
+      ]
+    },
+    {
+      "key": "difficulty",
+      "label": "Difficulté",
+      "type": "enum",
+      "default": "easy",
+      "group": "Jeu",
+      "options": [
+        "peaceful",
+        "easy",
+        "normal",
+        "hard"
+      ]
+    },
+    {
+      "key": "allow-cheats",
+      "label": "Commandes de triche",
+      "type": "bool",
+      "default": false,
+      "group": "Jeu"
+    },
+    {
+      "key": "default-player-permission-level",
+      "label": "Droits des nouveaux joueurs",
+      "type": "enum",
+      "default": "member",
+      "group": "Jeu",
+      "options": [
+        "visitor",
+        "member",
+        "operator"
+      ]
+    },
+    {
+      "key": "level-name",
+      "label": "Nom du monde",
+      "type": "text",
+      "default": "Bedrock level",
+      "group": "Monde",
+      "maxlen": 60
+    },
+    {
+      "key": "level-seed",
+      "label": "Graine du monde",
+      "type": "text",
+      "default": "",
+      "group": "Monde",
+      "required": false,
+      "maxlen": 60,
+      "hint": "S'applique à la création du monde"
+    },
+    {
+      "key": "view-distance",
+      "label": "Distance d'affichage (chunks)",
+      "type": "int",
+      "default": 10,
+      "group": "Performances",
+      "min": 5,
+      "max": 32
+    },
+    {
+      "key": "tick-distance",
+      "label": "Distance de simulation (chunks)",
+      "type": "int",
+      "default": 4,
+      "group": "Performances",
+      "min": 4,
+      "max": 12
+    }
+  ],
+  "untested": true
+}

@@ -1,0 +1,155 @@
+{
+  "id": "projectzomboid",
+  "name": "Project Zomboid",
+  "install": {
+    "type": "steamcmd",
+    "appid": 380870,
+    "check_file": "ProjectZomboid64.json",
+    "make_dirs": [
+      "Zomboid/Server"
+    ]
+  },
+  "run": {
+    "runtime": "wine",
+    "command": [
+      "ProjectZomboid64.exe",
+      "-cachedir=Zomboid",
+      "-servername",
+      "lana",
+      "-adminpassword",
+      "{admin_password}"
+    ],
+    "cwd": ".",
+    "startup_seconds": 120,
+    "linux": {
+      "runtime": "native",
+      "command": [
+        "./ProjectZomboid64",
+        "-cachedir=Zomboid",
+        "-servername",
+        "lana",
+        "-adminpassword",
+        "{admin_password}"
+      ],
+      "env": {
+        "LD_LIBRARY_PATH": "linux64:natives:."
+      }
+    }
+  },
+  "requirements": {
+    "ram_gb_min": 4,
+    "ram_gb_recommended": 8,
+    "disk_gb": 5
+  },
+  "ports": [
+    {
+      "from": "DefaultPort",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    },
+    {
+      "from": "DefaultPort",
+      "offset": 1,
+      "proto": "udp",
+      "label": "Jeu (2)"
+    }
+  ],
+  "connect": "{lan_ip}:{DefaultPort}",
+  "savegame": "Zomboid/Saves",
+  "config": {
+    "file": "Zomboid/Server/lana.ini",
+    "format": "properties",
+    "initial": {
+      "PublicName": "Un serveur LANa",
+      "DefaultPort": 16261,
+      "MaxPlayers": 8
+    }
+  },
+  "fields": [
+    {
+      "key": "PublicName",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 60
+    },
+    {
+      "key": "PublicDescription",
+      "label": "Description",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 200
+    },
+    {
+      "key": "Password",
+      "label": "Mot de passe (vide = ouvert)",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "required": false,
+      "maxlen": 64
+    },
+    {
+      "key": "MaxPlayers",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 8,
+      "group": "Serveur",
+      "min": 1,
+      "max": 100
+    },
+    {
+      "key": "Public",
+      "label": "Visible dans la liste publique",
+      "type": "bool",
+      "default": false,
+      "group": "Serveur"
+    },
+    {
+      "key": "DefaultPort",
+      "label": "Port",
+      "type": "int",
+      "default": 16261,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535,
+      "hint": "Ouvrir aussi le port suivant (UDP)"
+    },
+    {
+      "key": "PVP",
+      "label": "Combat entre joueurs",
+      "type": "bool",
+      "default": true,
+      "group": "Jeu"
+    },
+    {
+      "key": "PauseEmpty",
+      "label": "Pause quand personne n'est connecté",
+      "type": "bool",
+      "default": true,
+      "group": "Jeu"
+    },
+    {
+      "key": "SafetySystem",
+      "label": "Système de sécurité JcJ",
+      "type": "bool",
+      "default": true,
+      "group": "Jeu"
+    },
+    {
+      "key": "lana:admin_password",
+      "label": "Mot de passe administrateur",
+      "type": "text",
+      "default": "changez-moi",
+      "group": "Serveur",
+      "maxlen": 64,
+      "pattern": "^\\S+$",
+      "hint": "Obligatoire : le serveur le demande au premier démarrage"
+    }
+  ],
+  "untested": true
+}
