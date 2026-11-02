@@ -10,7 +10,7 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, games, instances, jobs, machine, paths, players, system
+from . import __version__, games, instances, jobs, machine, paths, players, system, upnp
 from .instances import Instance, InstanceError
 
 ROUTE_INSTANCE = re.compile(r"^/api/instances/([a-z0-9-]+)(?:/([a-z-]+))?$")
@@ -75,14 +75,16 @@ def instance_payload(inst):
         values = inst.read_config()
         out["values"] = values
         ip = system.lan_ip()
-        out["ports"] = [{"label": p["label"], "proto": p["proto"], "port": values[p["from"]] + p["offset"]}
-                        for p in game.get("ports", [])]
+        out["ports"] = inst.ports()
+        out["upnp"] = upnp.status(inst)
         # Les clés à point ou à deux-points ne sont pas utilisables dans un format : réglages LANa sous leur nom court.
         names = {k: v for k, v in values.items() if "." not in k and ":" not in k}
         names.update({k[len("lana:"):]: v for k, v in values.items() if k.startswith("lana:")})
         # Clés à point (json imbriqué) utilisables sous forme soulignée : network.port -> {network_port}
         names.update({k.replace(".", "_"): v for k, v in values.items() if "." in k and ":" not in k and "[" not in k})
         out["connect"] = game.get("connect", "").format(lan_ip=ip or "?", **names)
+        wan = out["upnp"]["external_ip"]
+        out["connect_wan"] = game.get("connect", "").format(lan_ip=wan, **names) if wan and out["upnp"]["state"] == "ok" else ""
         out["backups"] = inst.backups()
         out["import_formats"] = inst.import_formats()
     return out
@@ -305,6 +307,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json({"ok": True, "message": "Configuration enregistrée, serveur redémarré"})
             note = " Redémarrez le serveur pour l'appliquer." if inst.running() else ""
             return self.json({"ok": True, "message": "Configuration enregistrée." + note})
+        if action == "upnp":
+            inst.set_upnp(body["enabled"] is True)
+            return self.json({"ok": True, "message": "Ouverture automatique des ports %s" % ("activée" if body["enabled"] is True else "désactivée")})
         if action == "backup":
             name = inst.backup(body.get("label", "manuelle"))
             return self.json({"ok": True, "message": "Sauvegarde créée : %s" % name, "name": name})
@@ -326,4 +331,5 @@ def serve(host, port):
         print("(ils sont aussi dans %s)" % paths.AUTH_FILE)
     print("LANa %s sur http://%s:%d" % (__version__, "localhost" if host == "127.0.0.1" else host, port))
     threading.Thread(target=players.track_forever, args=(instances.list_all,), daemon=True).start()
+    threading.Thread(target=upnp.maintain_forever, args=(instances.list_all,), daemon=True).start()
     ThreadingHTTPServer((host, port), Handler).serve_forever()

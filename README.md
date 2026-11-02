@@ -88,6 +88,19 @@ depuis le journal (heures du jour seulement : au-delà de 24 h, les dates sont a
 | Palworld | oui, **format d'un modèle tiers, non vérifié** (avertissement affiché) | — |
 | V Rising, Sons of the Forest | **non** : format de journal inconnu, aucune source fiable | — |
 
+## Ports et UPnP
+
+Quand un serveur démarre, LANa demande à la box d'ouvrir ses ports (UPnP) et la page du serveur affiche l'adresse à donner aux joueurs extérieurs. Quand le serveur s'arrête, les ports sont refermés.
+C'est actif par défaut pour tous les serveurs, avec une case « UPnP » par serveur pour le désactiver.
+
+- **Bail d'une heure** : chaque redirection est renouvelée toutes les 10 minutes. Un serveur arrêté hors de LANa ne laisse donc pas de ports ouverts indéfiniment.
+- **Box sans UPnP** : si la box ne répond pas, ou si l'UPnP y est désactivé, la page le dit et donne la liste des ports à ouvrir à la main.
+- **Adresse non publique** : si l'adresse de la box n'est pas une adresse Internet, la page prévient que les joueurs extérieurs ne pourront pas se connecter. Cela arrive avec un double routeur ou un fournisseur qui partage les adresses (CGNAT).
+- **Port déjà pris** : si un port est déjà redirigé vers une autre machine, LANa ne l'écrase pas et le signale.
+- **Panneau d'administration** : le port de LANa lui-même n'est jamais ouvert sur Internet.
+
+Vérifié sur une box MiniUPnPd (IGD 2) : ouverture au démarrage, fermeture par la case, adresse Internet relevée.
+
 ## Systèmes
 
 | Système | État |
@@ -147,7 +160,7 @@ python3 -m unittest discover -s tests
 
 ```
 run.py            lanceur (lancer.bat sous Windows)
-lana/             machine, games, config, runtime (Wine, SteamCMD, processus), system (différences macOS/Linux/Windows), instances, jobs, web
+lana/             machine, games, config, runtime (Wine, SteamCMD, processus), system (différences macOS/Linux/Windows), instances, jobs, players, upnp, web
 games/            une définition JSON par jeu
 web/index.html    interface
 tests/            tests unitaires (aucun ne lance Wine)

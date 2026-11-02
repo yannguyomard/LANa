@@ -9,7 +9,7 @@ import threading
 import time
 import zipfile
 
-from . import config, games, jobs, machine, paths, runtime, system
+from . import config, games, jobs, machine, paths, runtime, system, upnp
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 KEEP_BACKUPS = 10
@@ -234,6 +234,7 @@ class Instance:
             except RuntimeError as ex:
                 raise InstanceError(str(ex))
             self._set_pgid(_procs[self.id].pid)
+        upnp.poke()
 
     def stop(self, backup=True):
         with _lock(self.id):
@@ -245,6 +246,22 @@ class Instance:
             if not runtime.stop_group(self._pgid(), system.uses_wine(run["runtime"]), self.prefix,
                                       sig=runtime.stop_signal(run.get("stop_signal", "TERM"))):
                 raise InstanceError("Le serveur ne s'est pas arrêté")
+        upnp.poke()
+
+    # ---------- ports ----------
+
+    def ports(self):
+        """Ports du serveur d'après sa config : [{"label", "proto", "port"}]."""
+        values = self.read_config()
+        return [{"label": p["label"], "proto": p["proto"], "port": int(values[p["from"]]) + p["offset"]}
+                for p in self.game.get("ports", [])]
+
+    def upnp_enabled(self):
+        return self.meta().get("upnp", True)
+
+    def set_upnp(self, enabled):
+        self._save_meta(dict(self.meta(), upnp=bool(enabled)))
+        upnp.poke()
 
     # ---------- config ----------
 

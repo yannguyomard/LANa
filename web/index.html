@@ -230,6 +230,9 @@ a.back:hover{color:var(--ink)}
 .shead h1{font:600 clamp(26px,4vw,38px)/1.1 var(--font-display);margin:6px 0 14px;letter-spacing:-.01em;overflow-wrap:anywhere}
 .shead .conn{color:var(--mut);margin-top:16px}
 .shead .conn b{color:var(--ink-2);font-weight:500}
+.shead .conn+.conn{margin-top:6px}
+.shead .up{display:inline-flex;flex-direction:row;vertical-align:middle;align-items:center;gap:7px;margin-right:14px;cursor:pointer;color:var(--ink-2);font-size:inherit}
+.shead .up input{width:14px;height:14px;margin:0}
 pre.log{margin:0;max-height:320px;overflow:auto;font:12px/1.55 var(--font-mono);white-space:pre-wrap;word-break:break-all;color:var(--ink-2);
   background:var(--bg-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px}
 
@@ -677,11 +680,24 @@ async function serverView(id){
   bStart.onclick=()=>act(all,`/api/instances/${id}/start`,{},refresh);
   bStop.onclick=()=>confirm("Arrêter le serveur ? Les joueurs seront déconnectés.")&&act(all,`/api/instances/${id}/stop`,{},refresh);
   bRe.onclick=()=>confirm("Redémarrer le serveur ?")&&act(all,`/api/instances/${id}/restart`,{},refresh);
+  const upBox=mk("input",{type:"checkbox",onchange:()=>act([upBox],`/api/instances/${id}/upnp`,{enabled:upBox.checked},refresh)});
+  const upText=mk("span"),upMsg=mk("div",{className:"msg warn"});
+  const upLine=mk("div",{className:"conn caps"},mk("label",{className:"up",title:"Demande à la box d'ouvrir les ports du serveur tant qu'il tourne (UPnP)"},upBox,"UPnP"),upText);
   const head=mk("section",{className:"card shead"},
     mk("div",{className:"kind caps",textContent:gameName+" · serveur"}),mk("h1",{textContent:s.name}),
     mk("div",{className:"row"},mk("span",{className:"pill"},dot,st),mk("span",{className:"grow"}),mk("div",{className:"acts row"},...all)),
-    mk("div",{className:"conn caps"},"Connexion ",mk("b",{textContent:s.connect}),"  ·  ports à ouvrir sur la box ",
-      mk("b",{textContent:s.ports.map(p=>`${p.port}/${p.proto.toUpperCase()}`).join(", ")||"—"})));
+    mk("div",{className:"conn caps"},"Connexion ",mk("b",{textContent:s.connect})),upLine,upMsg);
+  const portList=s.ports.map(p=>`${p.port}/${p.proto.toUpperCase()}`).join(", ")||"—";
+  function showUpnp(x){
+    const u=x.upnp;upBox.checked=u.enabled;upMsg.textContent=u.state==="error"?u.message:"";
+    const say=(a,b,c,d)=>upText.replaceChildren(a,mk("b",{textContent:b}),...(c?[c,mk("b",{textContent:d})]:[]));
+    if(!u.enabled)say("ports à ouvrir à la main sur la box ",portList);
+    else if(u.state==="ok")say("ports ouverts sur la box ",portList,"  ·  depuis Internet ",x.connect_wan||"—");
+    else if(u.state==="pending")say("ouverture des ports sur la box… ",portList);
+    else if(u.state==="error")say("ports à ouvrir à la main sur la box ",portList);
+    else say("ports ouverts sur la box au démarrage ",portList);
+  }
+  showUpnp(s);
   let n=1;
   const pc=playersCard(s.players_tracking,n++);
 
@@ -743,6 +759,7 @@ async function serverView(id){
     const x=await api("/api/instances/"+id);
     dot.className="dot "+(x.running?"on live":"off");st.textContent=x.running?"En marche":"Arrêté";
     bStart.disabled=x.running;bStop.disabled=!x.running;
+    if(x.upnp)showUpnp(x);
     if(s.players_tracking){const d=await api(`/api/instances/${id}/players`);if(current===id)pc.update(d.ok===false?null:d)}
     const atEnd=log.scrollTop+log.clientHeight>=log.scrollHeight-20;
     log.textContent=await api(`/api/instances/${id}/log`);if(atEnd)log.scrollTop=log.scrollHeight;

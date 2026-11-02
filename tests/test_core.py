@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _home = tempfile.mkdtemp(prefix="lana-test-")
 os.environ["LANA_HOME"] = _home
 
-from lana import config, games, instances, machine, players, runtime, system, web  # noqa: E402
+from lana import config, games, instances, machine, players, runtime, system, upnp, web  # noqa: E402
 
 FAKE = {
     "id": "fake", "name": "Faux jeu",
@@ -1019,6 +1019,118 @@ class PlatformTests(unittest.TestCase):
                 runtime._safe_extract(archive, os.path.join(folder, "out"))
         finally:
             shutil.rmtree(folder, ignore_errors=True)
+
+
+class UpnpTests(unittest.TestCase):
+    DESC = b"""<?xml version="1.0"?><root xmlns="urn:schemas-upnp-org:device-1-0"><device>
+      <serviceList><service><serviceType>urn:schemas-upnp-org:service:Layer3Forwarding:1</serviceType>
+      <controlURL>/ctl/L3F</controlURL></service></serviceList><deviceList><device><deviceList><device><serviceList>
+      <service><serviceType>urn:schemas-upnp-org:service:WANIPConnection:1</serviceType>
+      <controlURL>/ctl/IPConn</controlURL></service></serviceList></device></deviceList></device></deviceList>
+      </device></root>"""
+
+    class FakeGateway:
+        local_ip = "192.168.1.20"
+
+        def __init__(self):
+            self.table, self.fail = {}, {}
+
+        def external_ip(self):
+            return "88.120.4.7"
+
+        def add(self, port, proto, description):
+            if (port, proto) in self.fail:
+                raise upnp.UPnPError("refus", self.fail[(port, proto)])
+            self.table[(port, proto)] = description
+
+        def delete(self, port, proto):
+            self.table.pop((port, proto), None)
+
+        def mappings(self):
+            return [{"port": p, "proto": pr, "client": self.local_ip, "description": d} for (p, pr), d in self.table.items()]
+
+    class FakeInstance:
+        def __init__(self, inst_id, ports, running=True, enabled=True):
+            self.id, self._ports, self.is_running, self.enabled = inst_id, ports, running, enabled
+
+        def upnp_enabled(self):
+            return self.enabled
+
+        def meta(self):
+            return {"installed": True}
+
+        def running(self):
+            return self.is_running
+
+        def ports(self):
+            return [{"port": p, "proto": pr, "label": ""} for p, pr in self._ports]
+
+    def setUp(self):
+        self.gw = self.FakeGateway()
+        upnp._gateway, upnp._mapped, upnp._state, upnp._cleaned = self.gw, {}, {}, False
+
+    def tearDown(self):
+        upnp._gateway, upnp._mapped, upnp._state = None, {}, {}
+
+    def test_parse_ssdp_and_description(self):
+        reply = b"HTTP/1.1 200 OK\r\nST: x\r\nLocation: http://192.168.1.254:46409/rootDesc.xml\r\n\r\n"
+        location = upnp.parse_ssdp(reply)
+        self.assertEqual(location, "http://192.168.1.254:46409/rootDesc.xml")
+        self.assertEqual(upnp.parse_description(self.DESC, location),
+                         ("urn:schemas-upnp-org:service:WANIPConnection:1", "http://192.168.1.254:46409/ctl/IPConn"))
+
+    def test_soap(self):
+        body = upnp.soap_body("urn:x", "AddPortMapping", [("NewPortMappingDescription", "a<b&c")])
+        self.assertIn(b"<NewPortMappingDescription>a&lt;b&amp;c</NewPortMappingDescription>", body)
+        ok = b"""<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body>
+          <u:GetExternalIPAddressResponse xmlns:u="urn:x"><NewExternalIPAddress>88.120.4.7</NewExternalIPAddress>
+          </u:GetExternalIPAddressResponse></s:Body></s:Envelope>"""
+        self.assertEqual(upnp.parse_soap(ok), {"NewExternalIPAddress": "88.120.4.7"})
+        fault = b"""<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/"><s:Body><s:Fault><detail>
+          <UPnPError xmlns="urn:schemas-upnp-org:control-1-0"><errorCode>718</errorCode>
+          <errorDescription>ConflictInMappingEntry</errorDescription></UPnPError></detail></s:Fault></s:Body></s:Envelope>"""
+        with self.assertRaises(upnp.UPnPError) as ctx:
+            upnp.parse_soap(fault)
+        self.assertEqual(ctx.exception.code, 718)
+
+    def test_sync_opens_and_closes(self):
+        inst = self.FakeInstance("valheim", [(2456, "udp"), (2457, "udp")])
+        upnp.sync([inst])
+        self.assertEqual(self.gw.table, {(2456, "udp"): "LANa valheim", (2457, "udp"): "LANa valheim"})
+        status = upnp.status(inst)
+        self.assertEqual((status["state"], status["external_ip"]), ("ok", "88.120.4.7"))
+        inst.is_running = False
+        upnp.sync([inst])
+        self.assertEqual(self.gw.table, {})
+        self.assertEqual(upnp.status(inst)["state"], "off")
+
+    def test_disabled_and_conflict(self):
+        off = self.FakeInstance("mc", [(25565, "tcp")], enabled=False)
+        busy = self.FakeInstance("rust", [(28015, "udp")])
+        self.gw.fail[(28015, "udp")] = upnp.CONFLICT
+        upnp.sync([off, busy])
+        self.assertEqual(self.gw.table, {})
+        self.assertFalse(upnp.status(off)["enabled"])
+        self.assertIn("autre machine", upnp.status(busy)["message"])
+
+    def test_leftovers_removed(self):
+        self.gw.table = {(9999, "udp"): "LANa ancien", (8080, "tcp"): "autre logiciel"}
+        upnp.sync([self.FakeInstance("cs2", [(27015, "udp")])])
+        self.assertEqual(set(self.gw.table), {(27015, "udp"), (8080, "tcp")})
+
+    def test_private_external_ip_warns(self):
+        self.gw.external_ip = lambda: "100.64.3.2"   # CGNAT
+        inst = self.FakeInstance("cs2", [(27015, "udp")])
+        upnp.sync([inst])
+        self.assertEqual(upnp.status(inst)["state"], "error")
+        self.assertIn("CGNAT", upnp.status(inst)["message"])
+
+    def test_every_game_port_is_mappable(self):
+        for game_id, game in games.load_all().items():
+            keys = {f["key"] for f in game["fields"]}
+            for port in game.get("ports", []):
+                self.assertIn(port["proto"], ("tcp", "udp"), game_id)
+                self.assertIn(port["from"], keys, game_id)
 
 
 if __name__ == "__main__":
