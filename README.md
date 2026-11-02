@@ -16,7 +16,7 @@ enregistré dans `~/LANa/auth.json`. Les serveurs installés vivent dans `~/LANa
 
 ## Prérequis
 
-- **Python 3.9 ou plus récent**. Lancement : `python3 run.py` (macOS, Linux) ou `lancer.bat` (Windows).
+- **Python 3.9 ou plus récent**. Lancement : `lancer.command` (double-clic sous macOS, `./lancer.command` sous Linux), `python3 run.py`, ou `lancer.bat` (Windows). Le panneau s'ouvre sur http://localhost:8765.
 - **Wine** pour les serveurs Windows (Enshrouded, Palworld, V Rising, Sons of the Forest) sous macOS et Linux ;
   inutile sous Windows, où les serveurs se lancent tels quels.
   macOS : MacPorts `sudo port install wine-stable` ou Homebrew `brew install --cask wine-stable`.
