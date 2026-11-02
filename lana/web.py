@@ -53,7 +53,7 @@ def games_payload():
     for game in games.load_all().values():
         spec = game["install"]
         out.append({"id": game["id"], "name": game["name"], "requirements": game["requirements"],
-                    "eula": game.get("eula"), "install_type": spec["type"], "steam_account": spec.get("login") == "account",
+                    "eula": game.get("eula"), "install_type": spec["type"],
                     "install_help": spec.get("help", ""), "family": game.get("family", ""),
                     "untested": bool(game.get("untested")), "wine": "wine" in games.needs(game),
                     "verdict": machine.verdict(game["requirements"], games.needs(game), mach, game.get("compat"))})
@@ -69,8 +69,6 @@ def instance_payload(inst):
     spec = game["install"]
     out["install_type"] = spec["type"]
     out["install_help"] = spec.get("help", "")
-    out["steam_account"] = spec.get("login") == "account"
-    out["admin_url"] = game.get("admin_url", "")   # panneau d'administration propre au jeu (ex. txAdmin)
     tracking = game.get("players")
     out["players_tracking"] = {"verified": tracking.get("verified", False), "note": tracking.get("note", "")} if tracking else None
     if out["installed"]:
@@ -85,8 +83,6 @@ def instance_payload(inst):
         # Clés à point (json imbriqué) utilisables sous forme soulignée : network.port -> {network_port}
         names.update({k.replace(".", "_"): v for k, v in values.items() if "." in k and ":" not in k and "[" not in k})
         out["connect"] = game.get("connect", "").format(lan_ip=ip or "?", **names)
-        if out["admin_url"]:
-            out["admin_url"] = out["admin_url"].format(lan_ip=ip or "localhost", **names)
         out["backups"] = inst.backups()
         out["import_formats"] = inst.import_formats()
     return out
@@ -272,14 +268,6 @@ class Handler(BaseHTTPRequestHandler):
         except InstanceError as ex:
             self.fail(str(ex))
 
-    @staticmethod
-    def steam_account(body):
-        """Identifiants Steam envoyés pour une installation (jamais enregistrés)."""
-        acc = body.get("steam")
-        if not isinstance(acc, dict):
-            return None
-        return {k: str(acc.get(k) or "").strip() for k in ("user", "password", "guard")}
-
     def route_post(self, path, body):
         if path == "/api/instances":
             game = games.get(body.get("game", ""))
@@ -287,7 +275,7 @@ class Handler(BaseHTTPRequestHandler):
             if game["install"]["type"] == "upload":   # l'installation se fera au dépôt de l'archive
                 return self.json({"ok": True, "id": inst.id, "job": None})
             try:
-                job = inst.install(accept_eula=body.get("accept_eula") is True, account=self.steam_account(body))
+                job = inst.install(accept_eula=body.get("accept_eula") is True)
             except InstanceError:
                 shutil.rmtree(inst.dir, ignore_errors=True)
                 raise
@@ -297,8 +285,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.fail("Introuvable", 404)
         inst, action = self.instance(match.group(1)), match.group(2)
         if action == "install":
-            return self.json({"ok": True, "job": inst.install(accept_eula=body.get("accept_eula") is True,
-                                                               account=self.steam_account(body)).id})
+            return self.json({"ok": True, "job": inst.install(accept_eula=body.get("accept_eula") is True).id})
         if action == "start":
             inst.start()
             return self.json({"ok": True, "message": "Démarrage lancé (environ %s secondes)" % games.run_spec(inst.game).get("startup_seconds", 30)})

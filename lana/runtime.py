@@ -164,24 +164,17 @@ def windows_path(path):
     return "Z:" + path.replace("/", "\\")
 
 
-def steamcmd_install(game, server_dir, prefix, job, account=None):
-    """Installe ou met à jour un serveur via SteamCMD (sous Wine hors Windows).
+def steamcmd_install(game, server_dir, prefix, job):
+    """Installe ou met à jour un serveur via SteamCMD (sous Wine hors Windows), avec une connexion anonyme.
 
     SteamCMD se met à jour lui-même au premier lancement puis s'arrête : on relance
     jusqu'à ce que les fichiers du jeu soient là.
-    Options de `install` : `beta` (branche), `mod` (jeux GoldSrc : +app_set_config <appid> mod <nom>),
-    `login: "account"` (le serveur exige un compte Steam qui possède le jeu ; `account` = {user, password, guard}).
-    Le mot de passe ne sert qu'à cette commande : il n'est ni enregistré ni écrit dans le journal.
+    Options de `install` : `beta` (branche), `mod` (jeux GoldSrc : +app_set_config <appid> mod <nom>).
     """
     spec = game["install"]
     exe = ensure_steamcmd(job)
     os.makedirs(server_dir, exist_ok=True)
     check = os.path.join(server_dir, spec["check_file"])
-    login = ["+login", "anonymous"]
-    if spec.get("login") == "account":
-        if not account or not account.get("user") or not account.get("password"):
-            raise RuntimeError("Ce serveur s'installe avec un compte Steam qui possède le jeu : identifiant et mot de passe requis.")
-        login = ["+login", account["user"], account["password"]] + ([account["guard"]] if account.get("guard") else [])
     appid = str(spec["appid"])
     update = ["+app_update", appid] + (["-beta", spec["beta"]] if spec.get("beta") else []) + ["validate"]
     for attempt in range(1, 4):
@@ -192,7 +185,7 @@ def steamcmd_install(game, server_dir, prefix, job, account=None):
             cmd, env, folder = [machine.find_tool("wine"), exe], wine_env(prefix), windows_path(server_dir)
         if games.platform(game) == "linux":
             cmd += ["+@sSteamCmdForcePlatformType", "linux"]
-        cmd += ["+force_install_dir", folder] + login
+        cmd += ["+force_install_dir", folder, "+login", "anonymous"]
         if spec.get("mod"):
             cmd += ["+app_set_config", appid, "mod", spec["mod"]]
         cmd += update + ["+quit"]
@@ -201,8 +194,6 @@ def steamcmd_install(game, server_dir, prefix, job, account=None):
         last = ""
         for line in proc.stdout:
             line = line.strip()
-            if account and account.get("password") and account["password"] in line:
-                line = line.replace(account["password"], "********")
             # Une ligne de progression par pas de 5 % suffit.
             if line.startswith("[") and "%" in line.split("]")[0]:
                 tag = line[:5]
@@ -211,13 +202,9 @@ def steamcmd_install(game, server_dir, prefix, job, account=None):
                 last = tag
             if line:
                 job.log(line)
-            if "Steam Guard" in line or "Two-factor" in line:
-                job.log("Steam demande une confirmation : validez dans l'application Steam, ou relancez avec le code reçu.")
         proc.wait()
         if os.path.exists(check):
             return
-        if spec.get("login") == "account" and attempt == 1 and proc.returncode not in (0, None):
-            break   # identifiants refusés : inutile d'insister (et d'exposer le compte à un blocage)
     raise RuntimeError("SteamCMD n'a pas installé %s." % spec["check_file"])
 
 
@@ -234,9 +221,6 @@ def resolve_download(game):
         release = fetch_json("https://api.github.com/repos/%s/releases/latest" % source["repo"])
         suffix = source["assets"].get(plat)
         url = next((a["browser_download_url"] for a in release.get("assets", []) if suffix and a["name"].endswith(suffix)), None)
-    elif kind == "fxserver":   # FiveM / RedM : build « recommandée » publiée par Cfx.re
-        info = fetch_json("https://changelogs-live.fivem.net/api/changelog/versions/%s/server" % ("linux" if plat == "linux" else "win32"))
-        url = info.get("recommended_download")
     elif kind == "bedrock":   # Minecraft Bedrock : liens officiels de Mojang
         links = fetch_json("https://net-secondary.web.minecraft-services.net/api/v1.0/download/links")["result"]["links"]
         wanted = "serverBedrockLinux" if plat == "linux" else "serverBedrockWindows"

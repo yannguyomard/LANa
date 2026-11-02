@@ -127,8 +127,6 @@ class AllGameDefinitionsTests(unittest.TestCase):
                 names_.update(defaults)
                 names_.update({f["key"].replace(".", "_"): f.get("default") for f in game["fields"] if "." in f["key"] and ":" not in f["key"] and "[" not in f["key"]})
                 game["connect"].format(lan_ip="1.2.3.4", **names_)
-                if game.get("admin_url"):
-                    game["admin_url"].format(lan_ip="1.2.3.4", **names_)
                 for run in [game["run"]] + [game["run"][p] for p in ("linux", "windows") if p in game["run"]]:
                     for arg in run["command"]:
                         arg.format(**defaults)
@@ -863,20 +861,22 @@ class TextFormatsTests(unittest.TestCase):
 
 class InstallSourcesTests(unittest.TestCase):
     def test_resolution_des_telechargements(self):
-        game = {"id": "x", "run": {"runtime": "wine", "command": ["a"]},
-                "install": {"source": {"kind": "fxserver"}}}
+        game = {"id": "x", "run": {"runtime": "wine", "command": ["a"]}, "install": {"source": {"kind": "bedrock"}}}
         original = runtime.fetch_json
-        runtime.fetch_json = lambda url: {"recommended_download": "https://exemple.test/%s/server.zip" % ("linux" if "/linux/" in url else "win32")}
+        runtime.fetch_json = lambda url: {"result": {"links": [{"downloadType": "serverBedrockWindows", "downloadUrl": "W"},
+                                                                {"downloadType": "serverBedrockLinux", "downloadUrl": "L"}]}}
         try:
-            self.assertIn("win32", runtime.resolve_download(game) if not system.IS_LINUX else "win32")
+            self.assertEqual(runtime.resolve_download(game), "W")   # serveur Windows (natif ou sous Wine)
             game["install"]["source"] = {"kind": "github", "repo": "o/r", "assets": {"windows": "win-x86.zip", "linux": "linux-x86.tar.gz"}}
             runtime.fetch_json = lambda url: {"assets": [{"name": "srv-linux-x86.tar.gz", "browser_download_url": "L"},
                                                          {"name": "srv-win-x86.zip", "browser_download_url": "W"}]}
-            self.assertEqual(runtime.resolve_download(game), "L" if system.IS_LINUX else "W")
+            self.assertEqual(runtime.resolve_download(game), "W")
             game["install"]["source"] = {"kind": "url", "urls": {"linux": "only-linux"}}
-            if not system.IS_LINUX:
-                with self.assertRaises(RuntimeError):
-                    runtime.resolve_download(game)
+            with self.assertRaises(RuntimeError):
+                runtime.resolve_download(game)
+            game["install"]["source"] = {"kind": "fxserver"}
+            with self.assertRaises(RuntimeError):   # source retirée
+                runtime.resolve_download(game)
         finally:
             runtime.fetch_json = original
 

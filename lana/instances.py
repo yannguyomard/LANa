@@ -117,12 +117,11 @@ class Instance:
         if missing:
             raise InstanceError("Outil manquant : %s. Installez-le puis réessayez." % ", ".join(missing))
 
-    def install(self, accept_eula=False, account=None):
+    def install(self, accept_eula=False):
         """Lance l'installation en arrière-plan ; retourne la tâche.
 
         Si le jeu impose un contrat de licence (`eula`), l'utilisateur doit l'avoir accepté explicitement :
-        LANa n'accepte jamais un contrat à sa place. `account` : identifiants Steam pour les serveurs qui exigent
-        un compte possédant le jeu (jamais enregistrés). Les jeux à fichiers fournis par l'utilisateur
+        LANa n'accepte jamais un contrat à sa place. Les jeux à fichiers fournis par l'utilisateur
         (`install.type == "upload"`) s'installent avec `install_upload`.
         """
         game = self.game
@@ -130,15 +129,13 @@ class Instance:
         spec = game["install"]
         if spec["type"] == "upload":
             raise InstanceError("Ce jeu s'installe en déposant l'archive de ses fichiers serveur : %s" % spec.get("help", ""))
-        if spec.get("login") == "account" and not (account and account.get("user") and account.get("password")):
-            raise InstanceError("Ce serveur exige un compte Steam qui possède le jeu : renseignez identifiant et mot de passe.")
 
         def work(job):
             if system.uses_wine(games.run_spec(game)["runtime"]):
                 runtime.init_prefix(self.prefix, job)
             extra = {}
             if spec["type"] == "steamcmd":
-                runtime.steamcmd_install(game, self.server_dir, self.prefix, job, account=account)
+                runtime.steamcmd_install(game, self.server_dir, self.prefix, job)
             elif spec["type"] == "mojang":
                 extra = runtime.mojang_install(game, self.server_dir, job)
                 job.log("Serveur Minecraft %s installé." % extra["version"])
