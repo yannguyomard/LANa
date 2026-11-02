@@ -774,7 +774,8 @@ async function serverView(id){
     log.textContent=await api(`/api/instances/${id}/log`);if(atEnd)log.scrollTop=log.scrollHeight;
   }
   refresh();
-  const loop=()=>{timer=setTimeout(async()=>{if(!document.hidden)await refresh();if(current===id)loop()},4000)};loop();
+  // Une requête ratée (LANa redémarré, wifi qui saute) ne doit pas figer la page : on réessaie au tour suivant.
+  const loop=()=>{timer=setTimeout(async()=>{if(!document.hidden)await refresh().catch(()=>{});if(current===id)loop()},4000)};loop();
 }
 
 // ---------- routage ----------
