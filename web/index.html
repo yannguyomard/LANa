@@ -231,6 +231,14 @@ a.back:hover{color:var(--ink)}
 .shead .conn{color:var(--mut);margin-top:16px}
 .shead .conn b{color:var(--ink-2);font-weight:500}
 .shead .conn+.conn{margin-top:6px}
+.tip{position:relative;display:inline-grid;place-items:center;width:17px;height:17px;margin-left:8px;border:1px solid var(--line);border-radius:50%;
+  font:500 11px/1 var(--font-mono);color:var(--mut);cursor:help;vertical-align:middle;text-transform:none;letter-spacing:0}
+.tip:hover,.tip:focus-visible{color:var(--ink);border-color:var(--acc);outline:none}
+.tip::after{content:attr(data-tip);position:absolute;z-index:20;left:-6px;top:calc(100% + 8px);transform:translateY(-4px);width:max-content;max-width:min(460px,calc(100vw - 80px));
+  padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--ink-2);font:400 12px/1.5 var(--font-mono);
+  white-space:pre-wrap;overflow-wrap:anywhere;text-align:left;box-shadow:0 8px 24px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity var(--dur-2),transform var(--dur-2)}
+.tip:hover::after,.tip:focus::after{opacity:1;transform:none;pointer-events:auto;user-select:text}
+[data-motion="reduced"] .tip::after{transition:none}
 .shead .up{display:inline-flex;flex-direction:row;vertical-align:middle;align-items:center;gap:7px;margin-right:14px;cursor:pointer;color:var(--ink-2);font-size:inherit}
 .shead .up input{width:14px;height:14px;margin:0}
 pre.log{margin:0;max-height:320px;overflow:auto;font:12px/1.55 var(--font-mono);white-space:pre-wrap;word-break:break-all;color:var(--ink-2);
@@ -452,7 +460,8 @@ async function act(btns,path,body,after){
   btns.forEach(b=>b.disabled=false);
 }
 const btn=(text,cls,props)=>mk("button",Object.assign({type:"button",className:"b"+(cls?" "+cls:""),textContent:text},props||{}));
-const label=(n,text)=>mk("h2",{className:"lbl caps"},mk("span",{className:"n",textContent:String(n).padStart(2,"0")}),text);
+const label=(n,text,extra)=>mk("h2",{className:"lbl caps"},mk("span",{className:"n",textContent:String(n).padStart(2,"0")}),text,...(extra?[extra]:[]));
+const tip=text=>{const t=mk("span",{className:"tip",tabIndex:0,textContent:"i"});t.dataset.tip=text;t.setAttribute("role","note");t.setAttribute("aria-label",text);return t};
 const clock=d=>(d||new Date()).toTimeString().slice(0,8);
 const shortCpu=c=>(c||"").replace(/\((R|TM)\)/g,"").replace(/\s*CPU\s*@.*$/,"").replace(/\s+/g," ").trim();
 
@@ -722,7 +731,7 @@ async function serverView(id){
   settings.append(mk("div",{className:"row"},bSave,bSaveR));
 
   // sauvegardes
-  const bk=mk("section",{className:"block"},label(n++,"Sauvegardes"));const bkc=mk("div",{className:"card"});bk.append(bkc);
+  const bk=mk("section",{className:"block"},label(n++,"Sauvegardes",tip(`Monde en cours :\n${s.save_path}\n\nArchives :\n${s.backup_dir}`)));const bkc=mk("div",{className:"card"});bk.append(bkc);
   const bBack=btn("Sauvegarder maintenant","",{onclick:()=>act([bBack],`/api/instances/${id}/backup`,{},()=>route())});
   const download=name=>{const a=mk("a",{href:`/api/instances/${id}/backups/${encodeURIComponent(name)}`,download:name});document.body.append(a);a.click();a.remove()};
   const bExport=btn("Exporter la sauvegarde actuelle","",{onclick:()=>act([bExport],`/api/instances/${id}/backup`,{label:"export"},r=>{download(r.name);route()})});
@@ -741,7 +750,7 @@ async function serverView(id){
   s.backups.forEach(b=>{
     const r=btn("Restaurer","",{onclick:()=>confirm("Restaurer "+b.name+" ? La sauvegarde actuelle sera d'abord archivée.")&&act([r],`/api/instances/${id}/restore`,{name:b.name},()=>route())});
     const d=btn("Télécharger","",{onclick:()=>download(b.name)});
-    bkc.append(mk("div",{className:"bk"},mk("span",{className:"mono",style:"font-size:13px;overflow-wrap:anywhere",textContent:b.name}),mk("span",{className:"hint",textContent:b.size_mb+" Mo"}),mk("span",{className:"grow"}),d,r));
+    bkc.append(mk("div",{className:"bk"},mk("span",{className:"mono",style:"font-size:13px;overflow-wrap:anywhere",textContent:b.name}),tip(b.path),mk("span",{className:"hint",textContent:b.size_mb+" Mo"}),mk("span",{className:"grow"}),d,r));
   });
 
   const logc=mk("section",{className:"block"},label(n++,"Journal")),log=mk("pre",{className:"log"});logc.append(log);

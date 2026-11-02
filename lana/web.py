@@ -86,6 +86,8 @@ def instance_payload(inst):
         wan = out["upnp"]["external_ip"]
         out["connect_wan"] = game.get("connect", "").format(lan_ip=wan, **names) if wan and out["upnp"]["state"] == "ok" else ""
         out["backups"] = inst.backups()
+        out["save_path"] = inst._save_path()
+        out["backup_dir"] = inst.backup_dir
         out["import_formats"] = inst.import_formats()
     return out
 

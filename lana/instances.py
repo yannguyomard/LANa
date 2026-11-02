@@ -335,7 +335,7 @@ class Instance:
     def backups(self):
         out = []
         for path in sorted(glob.glob(os.path.join(self.backup_dir, "*.tar.gz")), reverse=True):
-            out.append({"name": os.path.basename(path), "size_mb": round(os.path.getsize(path) / 2**20, 1)})
+            out.append({"name": os.path.basename(path), "size_mb": round(os.path.getsize(path) / 2**20, 1), "path": path})
         return out
 
     def backup_path(self, name):
