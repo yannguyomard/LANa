@@ -29,11 +29,6 @@
     "ram_gb_recommended": 12,
     "disk_gb": 6
   },
-  "compat": {
-    "level": "warn",
-    "platforms": ["darwin"],
-    "note": "Expérimental sur Mac Intel avec Wine : le serveur démarre et sauvegarde (constaté), malgré des erreurs de shaders, mais il a planté en cours de partie. Prévoyez des sauvegardes fréquentes."
-  },
   "ports": [
     {
       "from": "GamePort",

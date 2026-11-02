@@ -33,7 +33,7 @@ LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d
 | Minecraft (Java) | disponible : dernière version stable de Mojang, mémoire de Java réglable, import de mondes `.zip` |
 | V Rising | disponible (Wine) : installation, démarrage, réglages lus par le jeu, testés sur Mac Intel de 8 Go (environ 1,9 Go de RAM) |
 | Palworld | disponible (Wine), **installation et configuration vérifiées, démarrage non testé** : 8 Go de RAM est son minimum et cette machine héberge déjà un autre serveur |
-| Sons of the Forest | **expérimental sur Mac Intel avec Wine 11** : le serveur démarre et fait ses sauvegardes automatiques (constaté lancé à la main), avec des erreurs de shaders sans conséquence apparente, mais il a **planté en cours de partie**. Le démarrage via LANa n'est pas encore validé |
+| Sons of the Forest | disponible (Wine) : fonctionne sur Mac Intel avec 4 joueurs (constaté). Un plantage en cours de partie a été observé une fois, sur une machine qui faisait aussi tourner un autre serveur |
 
 ### Jeux ajoutés, à tester
 
@@ -99,7 +99,6 @@ depuis le journal (heures du jour seulement : au-delà de 24 h, les dates sont a
 | Linux | **non testé** : même chemin que macOS (Wine, SteamCMD, signaux POSIX) ; la détection de la machine et les téléchargements de Java sont couverts par des tests unitaires |
 | Windows | **non testé** : serveurs lancés sans Wine, arrêt par Ctrl+Pause puis `taskkill`, détection de la mémoire par l'API Windows ; les points à vérifier en priorité sont l'arrêt des serveurs et l'import de sauvegardes (renommage de dossiers) |
 
-Sons of the Forest n'est signalé comme expérimental que sous macOS : le plantage constaté vient de Wine sur Mac.
 
 Sous Wine, ni SIGTERM ni SIGINT ne font sauvegarder V Rising à l'arrêt (mesuré : aucun fichier écrit ; SIGINT bloque même l'arrêt 30 s). LANa archive la sauvegarde **telle qu'elle est sur disque** avant chaque arrêt, mais la progression depuis la dernière sauvegarde automatique du jeu peut être perdue.
 Gardez donc un intervalle de sauvegarde automatique court (réglable dans chaque jeu). Une vraie commande de sauvegarde (RCON ou API REST selon le jeu) est la prochaine amélioration. Minecraft, lui, sauvegarde en quittant.
