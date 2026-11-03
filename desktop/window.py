@@ -75,6 +75,7 @@ class MainWindow(QMainWindow):
         self.timer.start()
         self.go("dashboard")
         self.refresh()
+        self.games.load()   # en arrière-plan dès l'ouverture : la page Jeux est prête au premier clic
 
     def _sidebar(self):
         bar = QFrame()

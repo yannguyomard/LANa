@@ -1,7 +1,7 @@
 """Apparence de l'appli : identité LANa (bleu nuit, dégradé bleu -> vert, titres étroits en capitales)."""
 import os
 
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontInfo, QPalette
 
 C = {
     "bg": "#0d141e", "bg2": "#0f1925", "surface": "#132131", "surface2": "#182a3d",
@@ -17,10 +17,14 @@ FONTS = {}
 SYSTEM_FONT = "Bahnschrift"   # livrée avec Windows ; ailleurs, Barlow (libre, OFL) embarquée dans assets/fonts
 
 
+def _installed(name):
+    """Police présente ? Sans QFontDatabase.families(), qui énumère toutes les polices (1,7 s sur un vieux Mac)."""
+    return QFontInfo(QFont(name)).family().lower() == name.lower()
+
+
 def load_fonts():
     """Bahnschrift sous Windows, sinon Barlow embarquée : titres et menu étroits, texte courant normal."""
-    installed = set(QFontDatabase.families())
-    if SYSTEM_FONT in installed:
+    if _installed(SYSTEM_FONT):
         FONTS.update(ui=SYSTEM_FONT, display="Bahnschrift SemiBold SemiCondensed",
                      nav="Bahnschrift SemiBold SemiCondensed", strong="normal")
     else:
@@ -34,7 +38,7 @@ def load_fonts():
         narrow = "Barlow Semi Condensed" if "Barlow Semi Condensed" in loaded else system
         FONTS.update(ui="Barlow" if "Barlow" in loaded else system, display=narrow, nav=narrow, strong="600")
     # Police à chasse fixe du système (Courier New sous Windows) seulement si aucune plus lisible n'est installée.
-    FONTS["mono"] = next((f for f in ("Consolas", "Menlo", "DejaVu Sans Mono", "Liberation Mono") if f in installed),
+    FONTS["mono"] = next((f for f in ("Consolas", "Menlo", "DejaVu Sans Mono", "Liberation Mono") if _installed(f)),
                          QFontDatabase.systemFont(QFontDatabase.FixedFont).family())
 
 

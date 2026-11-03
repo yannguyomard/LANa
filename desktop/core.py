@@ -7,6 +7,7 @@ import os
 import shutil
 import sys
 import threading
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -19,6 +20,9 @@ from lana.instances import Instance, InstanceError  # noqa: E402,F401
 VERSION = __version__
 _installs = {}          # id du serveur -> tâche d'installation en cours ou finie (durée de vie de l'appli)
 _services = threading.Event()
+_catalog = {"at": 0.0, "games": None}
+_catalog_lock = threading.Lock()
+CATALOG_SECONDS = 60   # le catalogue dépend des outils installés (Java…) : relu au bout d'une minute
 
 
 def start_services():
@@ -67,7 +71,12 @@ def machine():
 
 
 def catalog():
-    return web.games_payload()
+    """Catalogue des jeux avec le verdict pour cette machine. Le calcul détecte les outils (Java…) et prend
+    plusieurs secondes sur une machine lente : gardé une minute, partagé entre la page Jeux et l'assistant."""
+    with _catalog_lock:
+        if _catalog["games"] is None or time.time() - _catalog["at"] > CATALOG_SECONDS:
+            _catalog.update(games=web.games_payload(), at=time.time())
+        return _catalog["games"]
 
 
 def game(game_id):
