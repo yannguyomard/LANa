@@ -226,6 +226,8 @@ Un jeu est un fichier `games/<id>.json`, sans code Python. Il décrit :
   `minutes_ns` (minutes dans l'interface, nanosecondes dans le fichier) et `collection` (liste d'éléments).
   `key` est un chemin pointé dans le fichier de config (nom entier de la propriété pour `.properties`).
   Une clé qui commence par `lana:` est un réglage de LANa (ex. `lana:memory_mb`), gardé hors du fichier du jeu et utilisable dans la commande de lancement (`{memory_mb}`).
+  `"advanced": true` range le réglage dans le mode avancé de l'appli de bureau (ports, performances, sauvegardes,
+  administration…) ; les autres sont montrés à tout le monde, donc à garder compréhensibles par un débutant.
 
 `games/enshrouded.json` sert de modèle.
 

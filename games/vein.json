@@ -97,6 +97,7 @@
       "type": "int",
       "default": 7777,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "Port à ouvrir sur la box"
@@ -107,6 +108,7 @@
       "type": "int",
       "default": 27015,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "Port à ouvrir sur la box"

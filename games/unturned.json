@@ -96,6 +96,7 @@
       "type": "int",
       "default": 27015,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "Ouvrir aussi le port suivant (UDP)"
@@ -158,6 +159,7 @@
       "type": "enum",
       "default": "InternetServer",
       "group": "Serveur",
+      "advanced": true,
       "options": [
         "InternetServer",
         "LanServer"

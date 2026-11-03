@@ -91,6 +91,7 @@
       "type": "text",
       "default": "",
       "group": "Serveur",
+      "advanced": true,
       "required": false,
       "maxlen": 64
     },
@@ -130,6 +131,7 @@
       "type": "int",
       "default": 7777,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "Ouvrir aussi le port suivant (UDP)"
@@ -140,6 +142,7 @@
       "type": "int",
       "default": 27015,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "Port à ouvrir sur la box"
@@ -156,21 +159,21 @@
       "label": "Vue à la troisième personne",
       "type": "bool",
       "default": true,
-      "group": "Jeu"
+      "group": "Jeu", "advanced": true
     },
     {
       "key": "[ServerSettings]ServerCrosshair",
       "label": "Réticule",
       "type": "bool",
       "default": true,
-      "group": "Jeu"
+      "group": "Jeu", "advanced": true
     },
     {
       "key": "[ServerSettings]ShowMapPlayerLocation",
       "label": "Position sur la carte",
       "type": "bool",
       "default": true,
-      "group": "Jeu"
+      "group": "Jeu", "advanced": true
     },
     {
       "key": "[ServerSettings]DifficultyOffset",
@@ -214,6 +217,7 @@
       "type": "float",
       "default": 1.0,
       "group": "Jeu",
+      "advanced": true,
       "min": 0.1,
       "max": 10.0
     }

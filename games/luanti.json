@@ -126,6 +126,7 @@
       "type": "int",
       "default": 30000,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535
     }

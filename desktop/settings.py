@@ -13,16 +13,9 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout
 from . import core
 from .widgets import label, run_async, set_prop
 
-TECHNICAL_GROUPS = {"Réseau", "Performances", "Sauvegardes", "Administration"}
-
-
 def is_essential(field):
-    """Réglage montré à un débutant : pas de port, de performances ni de réglage interne de LANa."""
-    if field["key"].startswith("lana:") or field["type"] == "collection":
-        return False
-    if field["group"] in TECHNICAL_GROUPS:
-        return False
-    return "port" not in field["label"].lower()
+    """Réglage montré à un débutant : ceux que games/*.json ne marque pas "advanced" (ports, performances…)."""
+    return not field.get("advanced") and field["type"] != "collection"
 
 
 def summary_fields(fields):

@@ -135,6 +135,7 @@
       "type": "int",
       "default": 6567,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535
     },
@@ -144,6 +145,7 @@
       "type": "int",
       "default": 1024,
       "group": "Performances",
+      "advanced": true,
       "min": 512,
       "max": 16384
     }

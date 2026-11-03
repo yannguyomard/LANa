@@ -133,6 +133,7 @@
       "type": "int",
       "default": 2456,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "Ouvrir aussi le port suivant (UDP)"

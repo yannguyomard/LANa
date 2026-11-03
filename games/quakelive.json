@@ -155,6 +155,7 @@
       "type": "int",
       "default": 27960,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "Port à ouvrir sur la box"

@@ -96,6 +96,7 @@
       "type": "text",
       "default": "",
       "group": "Serveur",
+      "advanced": true,
       "required": false,
       "maxlen": 64
     },
@@ -104,7 +105,7 @@
       "label": "Réseau local uniquement",
       "type": "bool",
       "default": false,
-      "group": "Serveur"
+      "group": "Serveur", "advanced": true
     },
     {
       "key": "lana:port",
@@ -112,6 +113,7 @@
       "type": "int",
       "default": 27015,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "Port à ouvrir sur la box"
@@ -155,7 +157,7 @@
       "label": "Équilibrage des équipes",
       "type": "bool",
       "default": true,
-      "group": "Jeu"
+      "group": "Jeu", "advanced": true
     },
     {
       "key": "sv_gravity",
@@ -163,6 +165,7 @@
       "type": "int",
       "default": 800,
       "group": "Jeu",
+      "advanced": true,
       "min": 100,
       "max": 2000
     }

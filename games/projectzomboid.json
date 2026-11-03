@@ -143,6 +143,7 @@
       "type": "int",
       "default": 16261,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "Ouvrir aussi le port suivant (UDP)"
@@ -166,7 +167,7 @@
       "label": "Système de sécurité JcJ",
       "type": "bool",
       "default": true,
-      "group": "Jeu"
+      "group": "Jeu", "advanced": true
     },
     {
       "key": "lana:admin_password",
@@ -174,6 +175,7 @@
       "type": "text",
       "default": "changez-moi",
       "group": "Serveur",
+      "advanced": true,
       "maxlen": 64,
       "pattern": "^\\S+$",
       "hint": "Obligatoire : le serveur le demande au premier démarrage"
@@ -184,6 +186,7 @@
       "type": "int",
       "default": 3072,
       "group": "Performances",
+      "advanced": true,
       "min": 1024,
       "max": 16384,
       "hint": "Le script officiel réserve 16 Go ; 3 à 4 Go suffisent pour quelques joueurs. Laissez au moins 1,5 Go au système."

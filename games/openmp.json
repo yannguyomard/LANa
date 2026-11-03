@@ -100,6 +100,7 @@
       "type": "int",
       "default": 7777,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "Port UDP à ouvrir sur la box"
@@ -109,7 +110,7 @@
       "label": "Administration à distance (RCON)",
       "type": "bool",
       "default": false,
-      "group": "Serveur"
+      "group": "Serveur", "advanced": true
     },
     {
       "key": "rcon.password",
@@ -117,6 +118,7 @@
       "type": "text",
       "default": "",
       "group": "Serveur",
+      "advanced": true,
       "required": false,
       "maxlen": 64
     }

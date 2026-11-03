@@ -126,6 +126,7 @@
       "type": "int",
       "default": 26900,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535,
       "hint": "TCP et UDP, plus les deux ports UDP suivants"
@@ -168,6 +169,7 @@
       "type": "text",
       "default": "lana",
       "group": "Monde",
+      "advanced": true,
       "maxlen": 40
     },
     {
@@ -176,6 +178,7 @@
       "type": "int",
       "default": 6144,
       "group": "Monde",
+      "advanced": true,
       "min": 6144,
       "max": 10240
     },
@@ -185,6 +188,7 @@
       "type": "text",
       "default": "Ma partie",
       "group": "Monde",
+      "advanced": true,
       "maxlen": 40
     },
     {
@@ -220,6 +224,7 @@
       "type": "int",
       "default": 100,
       "group": "Serveur",
+      "advanced": true,
       "min": 25,
       "max": 300
     },
@@ -229,6 +234,7 @@
       "type": "int",
       "default": 100,
       "group": "Serveur",
+      "advanced": true,
       "min": 25,
       "max": 300
     }

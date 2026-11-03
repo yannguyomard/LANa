@@ -153,6 +153,7 @@
       "type": "int",
       "default": 7777,
       "group": "Réseau",
+      "advanced": true,
       "min": 1024,
       "max": 65535
     }

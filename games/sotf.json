@@ -122,6 +122,7 @@
       "label": "Port de jeu (UDP)",
       "type": "int",
       "group": "Serveur",
+      "advanced": true,
       "default": 8766,
       "min": 1024,
       "max": 65535
@@ -131,6 +132,7 @@
       "label": "Port de requêtes (UDP)",
       "type": "int",
       "group": "Serveur",
+      "advanced": true,
       "default": 27016,
       "min": 1024,
       "max": 65535
@@ -140,6 +142,7 @@
       "label": "Port de synchronisation du monde (UDP)",
       "type": "int",
       "group": "Serveur",
+      "advanced": true,
       "default": 9700,
       "min": 1024,
       "max": 65535
@@ -172,6 +175,7 @@
       "label": "Emplacement de sauvegarde",
       "type": "int",
       "group": "Jeu",
+      "advanced": true,
       "default": 1,
       "min": 1,
       "max": 30
@@ -197,6 +201,7 @@
       "label": "Intervalle de sauvegarde (secondes)",
       "type": "int",
       "group": "Sauvegardes",
+      "advanced": true,
       "default": 600,
       "min": 30,
       "max": 7200
@@ -206,6 +211,7 @@
       "label": "Images par seconde sans joueur",
       "type": "int",
       "group": "Performances",
+      "advanced": true,
       "default": 5,
       "min": 1,
       "max": 60
@@ -215,6 +221,7 @@
       "label": "Images par seconde avec des joueurs",
       "type": "int",
       "group": "Performances",
+      "advanced": true,
       "default": 60,
       "min": 10,
       "max": 120,

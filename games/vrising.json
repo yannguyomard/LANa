@@ -99,6 +99,7 @@
       "label": "Places réservées aux admins",
       "type": "int",
       "group": "Serveur",
+      "advanced": true,
       "default": 4,
       "min": 0,
       "max": 16
@@ -108,6 +109,7 @@
       "label": "Port de jeu",
       "type": "int",
       "group": "Serveur",
+      "advanced": true,
       "default": 9876,
       "min": 1024,
       "max": 65535,
@@ -118,6 +120,7 @@
       "label": "Port de la liste des serveurs",
       "type": "int",
       "group": "Serveur",
+      "advanced": true,
       "default": 9877,
       "min": 1024,
       "max": 65535,
@@ -128,6 +131,7 @@
       "label": "Protection anti-triche (VAC)",
       "type": "bool",
       "group": "Serveur",
+      "advanced": true,
       "default": true
     },
     {
@@ -142,6 +146,7 @@
       "label": "Lister sur Epic (EOS)",
       "type": "bool",
       "group": "Serveur",
+      "advanced": true,
       "default": false
     },
     {
@@ -210,6 +215,7 @@
       "label": "Nom de la sauvegarde",
       "type": "text",
       "group": "Jeu",
+      "advanced": true,
       "default": "world1",
       "maxlen": 40,
       "pattern": "^[A-Za-z0-9_-]+$",
@@ -221,6 +227,7 @@
       "label": "Sauvegardes automatiques gardées",
       "type": "int",
       "group": "Sauvegardes",
+      "advanced": true,
       "default": 20,
       "min": 1,
       "max": 200
@@ -230,6 +237,7 @@
       "label": "Intervalle de sauvegarde (secondes)",
       "type": "int",
       "group": "Sauvegardes",
+      "advanced": true,
       "default": 120,
       "min": 30,
       "max": 3600
@@ -239,6 +247,7 @@
       "label": "Compresser les sauvegardes",
       "type": "bool",
       "group": "Sauvegardes",
+      "advanced": true,
       "default": true
     },
     {
@@ -246,6 +255,7 @@
       "label": "Images par seconde du serveur",
       "type": "int",
       "group": "Performances",
+      "advanced": true,
       "default": 30,
       "min": 10,
       "max": 60,
@@ -256,6 +266,7 @@
       "label": "RCON (administration à distance)",
       "type": "bool",
       "group": "Administration",
+      "advanced": true,
       "default": false
     },
     {
@@ -263,6 +274,7 @@
       "label": "Port RCON (TCP)",
       "type": "int",
       "group": "Administration",
+      "advanced": true,
       "default": 25575,
       "min": 1024,
       "max": 65535
@@ -272,6 +284,7 @@
       "label": "Mot de passe RCON",
       "type": "text",
       "group": "Administration",
+      "advanced": true,
       "default": "",
       "maxlen": 60,
       "required": false,
