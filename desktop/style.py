@@ -1,7 +1,8 @@
 """Apparence de l'appli : identité LANa (bleu nuit, dégradé bleu -> vert, titres étroits en capitales)."""
 import os
+import sys
 
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QFontInfo, QPalette
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
 
 C = {
     "bg": "#0d141e", "bg2": "#0f1925", "surface": "#132131", "surface2": "#182a3d",
@@ -14,32 +15,29 @@ C = {
 GRADIENT = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1b6bfa, stop:0.5 #22b8f0, stop:1 #43d64a)"
 GRADIENT_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3a82ff, stop:0.5 #45c8f5, stop:1 #5ee865)"
 FONTS = {}
-SYSTEM_FONT = "Bahnschrift"   # livrée avec Windows ; ailleurs, Barlow (libre, OFL) embarquée dans assets/fonts
-
-
-def _installed(name):
-    """Police présente ? Sans QFontDatabase.families(), qui énumère toutes les polices (1,7 s sur un vieux Mac)."""
-    return QFontInfo(QFont(name)).family().lower() == name.lower()
+# Polices choisies selon le système, sans jamais demander à Qt une famille absente : la première absente lui fait
+# indexer tous les alias de polices (3 s sur un Mac de 2015), et QFontDatabase.families() coûte autant.
+# Bahnschrift et Consolas sont livrées avec tous les Windows que Qt 6 accepte (10 1809 et plus récents).
+WINDOWS = sys.platform == "win32"
 
 
 def load_fonts():
     """Bahnschrift sous Windows, sinon Barlow embarquée : titres et menu étroits, texte courant normal."""
-    if _installed(SYSTEM_FONT):
-        FONTS.update(ui=SYSTEM_FONT, display="Bahnschrift SemiBold SemiCondensed",
-                     nav="Bahnschrift SemiBold SemiCondensed", strong="normal")
-    else:
-        folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "fonts")
-        loaded = set()
-        for fname in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
-            if fname.endswith(".ttf"):
-                loaded.update(QFontDatabase.applicationFontFamilies(
-                    QFontDatabase.addApplicationFont(os.path.join(folder, fname))))
-        system = QFontDatabase.systemFont(QFontDatabase.GeneralFont).family()
-        narrow = "Barlow Semi Condensed" if "Barlow Semi Condensed" in loaded else system
-        FONTS.update(ui="Barlow" if "Barlow" in loaded else system, display=narrow, nav=narrow, strong="600")
-    # Police à chasse fixe du système (Courier New sous Windows) seulement si aucune plus lisible n'est installée.
-    FONTS["mono"] = next((f for f in ("Consolas", "Menlo", "DejaVu Sans Mono", "Liberation Mono") if _installed(f)),
-                         QFontDatabase.systemFont(QFontDatabase.FixedFont).family())
+    if WINDOWS:
+        FONTS.update(ui="Bahnschrift", display="Bahnschrift SemiBold SemiCondensed",
+                     nav="Bahnschrift SemiBold SemiCondensed", strong="normal", mono="Consolas")
+        return
+    folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "fonts")
+    loaded = set()
+    for fname in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        if fname.endswith(".ttf"):
+            loaded.update(QFontDatabase.applicationFontFamilies(
+                QFontDatabase.addApplicationFont(os.path.join(folder, fname))))
+    system = QFontDatabase.systemFont(QFontDatabase.GeneralFont).family()
+    narrow = "Barlow Semi Condensed" if "Barlow Semi Condensed" in loaded else system
+    FONTS.update(ui="Barlow" if "Barlow" in loaded else system, display=narrow, nav=narrow, strong="600")
+    # Menlo est toujours présente sur Mac ; ailleurs, la police à chasse fixe déclarée par le système.
+    FONTS["mono"] = "Menlo" if sys.platform == "darwin" else QFontDatabase.systemFont(QFontDatabase.FixedFont).family()
 
 
 QSS = """
