@@ -6,7 +6,7 @@ from PySide6.QtCore import QEvent, QPoint, QSettings, Qt, QTimer
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
 
 from . import core, motion
-from .frame import Grips, TitleBar, start_move
+from .frame import Grips, TitleBar
 from .catalog import GamesPage
 from .dashboard import DashboardPage
 from .home import HomePage, Transient
@@ -17,17 +17,6 @@ from .wizard import NewServerDialog
 
 NAV = [("dashboard", "tableau-de-bord", "Tableau de bord"), ("servers", "serveurs", "Serveurs"),
        ("games", "jeux", "Jeux"), ("prefs", "reglages", "Réglages")]
-
-
-class Sidebar(QFrame):
-    """Menu latéral ; un clic sur une zone vide déplace la fenêtre (elle n'a plus de barre de titre système)."""
-
-    def mousePressEvent(self, event):
-        start_move(self, event)
-
-    def mouseDoubleClickEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.window().titlebar.toggle_maximized()
 
 
 class MainWindow(QMainWindow):
@@ -101,7 +90,7 @@ class MainWindow(QMainWindow):
         self.games.load()   # en arrière-plan dès l'ouverture : la page Jeux est prête au premier clic
 
     def _sidebar(self):
-        bar = Sidebar()
+        bar = QFrame()   # seule la bande du haut (TitleBar) déplace et agrandit la fenêtre
         bar.setObjectName("sidebar")
         bar.setFixedWidth(250)
         col = QVBoxLayout(bar)

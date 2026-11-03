@@ -13,6 +13,11 @@ from .widgets import label, run_async, set_prop
 LEVEL_TEXT = {"ok": "", "warn": "⚠ ", "bad": "✕ "}
 
 
+class DragBar(QWidget):
+    def mousePressEvent(self, event):
+        start_move(self, event)
+
+
 class NewServerDialog(QDialog):
     installed = Signal(str)        # id du serveur prêt
     changed = Signal()             # la liste des serveurs a changé
@@ -38,12 +43,14 @@ class NewServerDialog(QDialog):
         root.setSpacing(14)
         self.step = label("", "caps")
         self.title = label("", "h1")
-        top = QHBoxLayout()
+        top_bar = DragBar()   # ligne du haut : la seule qui déplace l'assistant
+        top = QHBoxLayout(top_bar)
+        top.setContentsMargins(0, 0, 0, 0)
         top.addWidget(self.step, 1)
         close = WindowButton("fenetre-fermer", "Fermer", danger=True)
         close.clicked.connect(self.reject)
         top.addWidget(close, 0, Qt.AlignTop)
-        root.addLayout(top)
+        root.addWidget(top_bar)
         root.addWidget(self.title)
         self.pages = QStackedWidget()
         root.addWidget(self.pages, 1)
@@ -378,6 +385,3 @@ class NewServerDialog(QDialog):
     def showEvent(self, event):
         super().showEvent(event)
         motion.fade_window(self)
-
-    def mousePressEvent(self, event):
-        start_move(self, event)   # glisser une zone vide déplace l'assistant
