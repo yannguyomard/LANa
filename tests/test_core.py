@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _home = tempfile.mkdtemp(prefix="lana-test-")
 os.environ["LANA_HOME"] = _home
 
-from lana import config, games, instances, jobs, machine, mods, players, runtime, system, upnp, versions, web  # noqa: E402
+from lana import config, games, instances, jobs, machine, mods, players, runtime, system, upnp, versions, web, whitelist  # noqa: E402
 
 FAKE = {
     "id": "fake", "name": "Faux jeu",
@@ -1503,6 +1503,61 @@ class JavaSearchTests(unittest.TestCase):
             else:
                 os.environ["PREFIX"] = saved[4]
         self.assertIn(os.path.join(prefix, "lib", "jvm", "java-25-openjdk", "bin", "java"), found)
+
+
+class WhitelistTests(unittest.TestCase):
+    def setUp(self):
+        games._cache["fakewl"] = dict(FAKE, id="fakewl",
+            config={"file": "server.properties", "format": "properties", "initial": {}},
+            fields=[{"key": "online-mode", "label": "En ligne", "type": "bool", "default": True}],   # white-list : valeur brute
+            whitelist={"file": "whitelist.json", "toggle": "white-list", "enforce": "enforce-whitelist",
+                       "console": {"add": "whitelist add {name}", "remove": "whitelist remove {name}", "on": "whitelist on", "off": "whitelist off"}})
+        self.inst = instances.Instance.create("fakewl")
+        write(os.path.join(self.inst.server_dir, "server.properties"), "online-mode=true\nwhite-list=false\nenforce-whitelist=false\n")
+        write(os.path.join(self.inst.server_dir, "usercache.json"), json.dumps([{"name": "Steve", "uuid": "x"}, {"name": "Alex", "uuid": "y"}]))
+        self.saved = (whitelist.mojang_profile, runtime.send_console)
+        whitelist.mojang_profile = lambda name: (name.capitalize(), "069a79f4-44e9-4726-a5be-fca90e38aaf5")
+
+    def tearDown(self):
+        whitelist.mojang_profile, runtime.send_console = self.saved
+        games._cache.pop("fakewl", None)
+
+    def test_offline_uuid_matches_minecraft(self):
+        self.assertEqual(whitelist.offline_uuid("Notch"), "b50ad385-829d-3141-a216-7e7d7539ba7f")
+
+    def test_add_remove_toggle_when_stopped(self):
+        whitelist.add(self.inst, "steve")
+        st = whitelist.state(self.inst)
+        self.assertEqual(st["entries"], [{"name": "Steve", "uuid": "069a79f4-44e9-4726-a5be-fca90e38aaf5"}])
+        self.assertEqual(st["suggestions"], ["Alex"])
+        with self.assertRaises(whitelist.WhitelistError):
+            whitelist.add(self.inst, "Steve")
+        with self.assertRaises(whitelist.WhitelistError):
+            whitelist.add(self.inst, "a b")
+        whitelist.set_enabled(self.inst, True)
+        props = read(os.path.join(self.inst.server_dir, "server.properties"))
+        self.assertIn("white-list=true", props)
+        self.assertIn("enforce-whitelist=true", props)
+        self.assertTrue(whitelist.state(self.inst)["enabled"])
+        whitelist.set_enabled(self.inst, False)
+        self.assertFalse(whitelist.state(self.inst)["enabled"])
+        whitelist.set_enabled(self.inst, True)
+        whitelist.remove(self.inst, "steve")
+        self.assertEqual(whitelist.state(self.inst)["entries"], [])
+        # hors ligne : UUID calculé, pas de requête à Mojang
+        write(os.path.join(self.inst.server_dir, "server.properties"), "online-mode=false\nwhite-list=true\n")
+        whitelist.mojang_profile = lambda name: self.fail("Mojang ne doit pas être interrogé")
+        whitelist.add(self.inst, "Notch")
+        self.assertEqual(whitelist.state(self.inst)["entries"][0]["uuid"], "b50ad385-829d-3141-a216-7e7d7539ba7f")
+
+    def test_running_server_goes_through_console(self):
+        sent = []
+        runtime.send_console = lambda log, lines: sent.extend(lines) or True
+        self.inst.running = lambda: True
+        message = whitelist.add(self.inst, "steve")
+        self.assertEqual(sent, ["whitelist add Steve"])
+        self.assertIn("tout de suite", message)
+        self.assertEqual(whitelist.state(self.inst)["entries"], [])   # c'est le serveur qui écrit le fichier
 
 
 if __name__ == "__main__":

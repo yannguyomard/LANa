@@ -340,7 +340,10 @@ table.pl tr.more td{background:var(--bg-2)}
 
 <script>
 const $=s=>document.querySelector(s);
-const mk=(tag,props,...kids)=>{const e=Object.assign(document.createElement(tag),props||{});kids.forEach(k=>k!=null&&e.append(k));return e};
+// Les clés à tiret (aria-label, data-…) sont des attributs, pas des propriétés : Object.assign les ignorerait.
+const mk=(tag,props,...kids)=>{const e=document.createElement(tag);
+  for(const [k,v] of Object.entries(props||{}))k.includes("-")?e.setAttribute(k,v):e[k]=v;
+  kids.forEach(k=>k!=null&&e.append(k));return e};
 const root=document.documentElement;
 let timer=null,current=null;
 // Un contrat de licence n'est jamais accepté implicitement : on redemande avant de reprendre une installation.
@@ -704,6 +707,45 @@ function playersCard(tracking,n){
   return {card,update};
 }
 
+// ---------- liste blanche ----------
+function whitelistSection(id,n){
+  const base=`/api/instances/${id}/whitelist`;
+  const sec=mk("section",{className:"block"},label(n,"Liste blanche")),card=mk("div",{className:"card"});sec.append(card);
+  async function send(btns,body){
+    btns.forEach(b=>b.disabled=true);
+    try{const r=await api(base,body);toast(r.message,!r.ok);if(r.ok)await load()}catch(e){toast("Erreur réseau",true)}
+    btns.forEach(b=>b.disabled=false);
+  }
+  async function load(){
+    const w=await api(base).catch(()=>({ok:false,message:"Erreur réseau"}));
+    if(!w.ok){card.replaceChildren(mk("div",{className:"hint",textContent:w.message}));return}
+    const box=mk("input",{type:"checkbox",checked:w.enabled});
+    box.onchange=()=>send([box],{do:"toggle",enabled:box.checked});
+    const name=mk("input",{placeholder:"Pseudo Minecraft",maxLength:16,autocomplete:"off",style:"max-width:240px"});
+    name.setAttribute("aria-label","Pseudo à ajouter");box.setAttribute("aria-label","Activer la liste blanche");
+    const list=mk("datalist",{id:"wl-"+id},...w.suggestions.map(x=>mk("option",{value:x})));name.setAttribute("list",list.id);
+    const add=btn("Ajouter","p",{onclick:()=>{const v=name.value.trim();if(!v){toast("Entrez d'abord un pseudo",true);return}send([add],{do:"add",name:v})}});
+    name.onkeydown=e=>{if(e.key==="Enter")add.click()};
+    const kids=[
+      mk("label",{className:"chk"},box,"Activer : seuls les joueurs de la liste peuvent entrer"),
+      mk("div",{className:"hint",style:"margin:6px 0 14px",textContent:(w.online_mode?"Les pseudos sont vérifiés auprès de Mojang (comptes officiels).":"Serveur hors ligne (online-mode désactivé) : l'identifiant est calculé à partir du pseudo, qui doit être écrit exactement comme en jeu.")+
+        (w.running?" Serveur en marche : les changements s'appliquent tout de suite s'il a été démarré par cette version de LANa, sinon au prochain démarrage.":"")}),
+      mk("div",{className:"row"},name,list,add)];
+    if(w.suggestions.length)kids.push(mk("div",{className:"hint",style:"margin-top:8px"},"Déjà venus sur ce serveur : ",
+      ...w.suggestions.slice(0,12).flatMap((x,i)=>[i?", ":"",mk("a",{href:"#",textContent:x,onclick:e=>{e.preventDefault();name.value=x;name.focus()}})])));
+    kids.push(mk("div",{className:"mods-sub",textContent:`Joueurs autorisés (${w.entries.length})`}));
+    if(!w.entries.length)kids.push(mk("div",{className:"empty",textContent:w.enabled?"Liste vide : personne ne peut entrer.":"Aucun joueur dans la liste."}));
+    w.entries.forEach(e=>{
+      const rm=btn("Retirer","d",{onclick:()=>confirm(`Retirer ${e.name} de la liste blanche ?`)&&send([rm],{do:"remove",name:e.name})});
+      kids.push(mk("div",{className:"bk"},mk("strong",{textContent:e.name}),e.uuid?tip(e.uuid):null,mk("span",{className:"grow"}),rm));
+    });
+    card.replaceChildren(...kids.filter(Boolean));
+  }
+  card.append(mk("div",{className:"hint",textContent:"Chargement…"}));
+  load();
+  return sec;
+}
+
 // ---------- mods ----------
 const KIND_LABEL={mod:"mod",plugin:"plugin",loader:"chargeur",workshop:"Workshop",manual:"ajouté à la main"};
 const fmtN=n=>n>=1e6?(n/1e6).toFixed(1).replace(".",",")+" M":n>=1e3?Math.round(n/1e3)+" k":String(n||0);
@@ -914,6 +956,7 @@ async function serverView(id){
   showUpnp(s);
   let n=1;
   const pc=playersCard(s.players_tracking,n++);
+  const wl=s.whitelist?whitelistSection(id,n++):null;
 
   // paramètres, groupés
   const getters={},groups={};
@@ -983,7 +1026,7 @@ async function serverView(id){
   await swap(()=>{
     setTheme(s.game);mountScene();
     const v=$("#view");v.innerHTML="";
-    v.append(mk("a",{className:"back caps",href:"#/",textContent:"← Accueil"}),enter(head,0),enter(pc.card,1),settings,...(vers?[vers]:[]),...(modsSec?[modsSec]:[]),bk,logc,del);
+    v.append(mk("a",{className:"back caps",href:"#/",textContent:"← Accueil"}),enter(head,0),enter(pc.card,1),...(wl?[wl]:[]),settings,...(vers?[vers]:[]),...(modsSec?[modsSec]:[]),bk,logc,del);
   },nav);
   if(nav!==routing)return;
 

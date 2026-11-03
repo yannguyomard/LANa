@@ -143,6 +143,17 @@ La section n'apparaît que pour ces jeux, et la liste dit s'il n'existe qu'une s
 Un changement de version se fait serveur arrêté. La sauvegarde est d'abord archivée (`…-avant-version.tar.gz`), parce qu'un monde ouvert dans une version récente ne se charge pas toujours dans une plus ancienne.
 La version choisie reste celle du serveur : « Réessayer » ou une réinstallation reprennent la même.
 
+## Liste blanche (Minecraft)
+
+Section « Liste blanche » de la page d'un serveur Minecraft :
+
+- une case pour l'activer (`white-list` et `enforce-whitelist` dans `server.properties`) : seuls les joueurs de la liste peuvent entrer ;
+- ajouter un joueur par son pseudo, avec les joueurs déjà venus sur le serveur proposés (`usercache.json`), ou le retirer ;
+- serveur en ligne : le pseudo est vérifié auprès de Mojang, qui donne son identifiant ; serveur hors ligne (`online-mode=false`) : l'identifiant est calculé à partir du pseudo, comme le fait Minecraft ;
+- serveur en marche : LANa passe par la console (`whitelist add …`), le changement s'applique sans redémarrage. Cela vaut pour un serveur démarré par cette version de LANa ; sinon, au prochain démarrage.
+
+Le serveur Minecraft s'arrête désormais par sa commande `stop` (sauvegarde du monde comprise), puis par un signal s'il ne répond pas.
+
 ## Mods
 
 Section « Mods » de la page d'un serveur, pour les jeux qui le permettent :
@@ -207,6 +218,7 @@ Un jeu est un fichier `games/<id>.json`, sans code Python. Il décrit :
 - variantes Linux : toute clé `nom_linux` (au premier niveau, dans `install` ou dans `config`) remplace `nom` quand le serveur tourne nativement sous Linux ; `run.linux` / `run.windows` remplacent la commande de lancement ;
 - `compat` : incompatibilité constatée en test (`level` `warn` ou `bad`, `note`). Avec `bad`, l'installation est refusée et la raison affichée ;
 - `log_file` : journal du jeu s'il n'écrit pas sur la sortie standard ;
+- `whitelist` : liste blanche gérée par LANa (`file`, réglage `toggle` et `enforce`, commandes `console` add/remove/on/off) ;
 - `mods` : gestion des mods (`provider` = `modrinth`, `thunderstore` avec `community` et `loader`, `umod` avec `game`, ou `workshop` avec `appid` et `targets`) ; `dir` et `extensions` pour l'ajout manuel, `config_dirs` pour les réglages modifiables, `verified` et `note` affichés à l'utilisateur ;
 - `world_zip` : accepte l'import de mondes `.zip` (`marker` = fichier qui prouve que c'est un monde, ex. `level.dat` ; `into`, facultatif = sous-dossier de la sauvegarde où l'extraire, qui peut citer la config, ex. `DedicatedServer/Multiplayer/{SaveSlot:010d}` pour Sons of the Forest) ;
 - `config` : fichier, format (`json`, `properties`, `ini` à sections avec des clés `[Section]Clé`, `cfg` pour les `server.cfg` de type Source/Quake (`prefix`, `quote`), `xml_props`, `xml_elements`, `arma` pour `clé = valeur;`, `none` si tout passe par la ligne de commande, ou `ue_options` pour la ligne `OptionSettings=(…)` d'Unreal) ; seules les lignes des réglages connus et modifiés sont réécrites ; `enforce` = réglages imposés même dans une config existante ; `seed_from` (fichier par défaut du jeu à copier comme point de départ) et `initial` (valeurs imposées par LANa ; le jeton `"{random}"` devient un mot de passe aléatoire) ;
@@ -227,7 +239,7 @@ python3 -m unittest discover -s tests
 
 ```
 run.py            lanceur (lancer.bat sous Windows, lancer-termux.sh sous Android)
-lana/             machine, games, config, runtime (Wine, SteamCMD, processus), system (différences macOS/Linux/Windows), instances, jobs, mods, players, upnp, versions, web
+lana/             machine, games, config, runtime (Wine, SteamCMD, processus), system (différences macOS/Linux/Windows), instances, jobs, mods, players, upnp, versions, web, whitelist
 games/            une définition JSON par jeu
 web/index.html    interface
 tests/            tests unitaires (aucun ne lance Wine)

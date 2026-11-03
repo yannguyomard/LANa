@@ -12,7 +12,9 @@
     "runtime": "java",
     "command": ["-Xms256M", "-Xmx{memory_mb}M", "-jar", "server.jar", "nogui"],
     "cwd": ".",
-    "startup_seconds": 60
+    "startup_seconds": 60,
+    "stop_command": ["stop"],
+    "stop_wait": 60
   },
   "requirements": {
     "ram_gb_min": 3,
@@ -57,7 +59,6 @@
      "hint": "Port TCP à ouvrir sur la box"},
     {"key": "online-mode", "label": "Vérifier les comptes Minecraft", "type": "bool", "default": true, "group": "Serveur",
      "hint": "Le désactiver permet des comptes non officiels, mais n'importe qui peut alors usurper un pseudo"},
-    {"key": "white-list", "label": "Liste blanche (joueurs autorisés seulement)", "type": "bool", "default": false, "group": "Serveur"},
 
     {"key": "gamemode", "label": "Mode de jeu", "type": "enum", "options": ["survival", "creative", "adventure", "spectator"], "default": "survival", "group": "Jeu"},
     {"key": "difficulty", "label": "Difficulté", "type": "enum", "options": ["peaceful", "easy", "normal", "hard"], "default": "normal", "group": "Jeu"},
@@ -83,5 +84,7 @@
     {"key": "lana:memory_mb", "label": "Mémoire allouée à Java (Mo)", "type": "int", "min": 512, "max": 16384, "default": 1536, "group": "Performances",
      "hint": "Laissez au moins 2 Go libres pour macOS. 1536 à 2048 suffisent pour quelques joueurs"}
   ],
-  "mods": {"provider": "modrinth"}
+  "mods": {"provider": "modrinth"},
+  "whitelist": {"file": "whitelist.json", "toggle": "white-list", "enforce": "enforce-whitelist",
+                "console": {"add": "whitelist add {name}", "remove": "whitelist remove {name}", "on": "whitelist on", "off": "whitelist off"}}
 }

@@ -10,7 +10,7 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, games, instances, jobs, machine, mods, paths, players, system, upnp, versions
+from . import __version__, games, instances, jobs, machine, mods, paths, players, system, upnp, versions, whitelist
 from .instances import Instance, InstanceError
 
 ROUTE_INSTANCE = re.compile(r"^/api/instances/([a-z0-9-]+)(?:/([a-z-]+))?$")
@@ -82,6 +82,7 @@ def instance_payload(inst):
     out["install_help"] = spec.get("help", "")
     out["versions"] = versions.kind(game)
     out["mods"] = mods.spec(game)["provider"] if mods.spec(game) else None
+    out["whitelist"] = bool(whitelist.spec(game))
     out["version"] = inst.meta().get("version", "")
     tracking = game.get("players")
     out["players_tracking"] = {"verified": tracking.get("verified", False), "note": tracking.get("note", "")} if tracking else None
@@ -228,6 +229,11 @@ class Handler(BaseHTTPRequestHandler):
                     return self.json(instance_payload(inst))
                 if match.group(2) == "log":
                     return self.reply(200, inst.log_tail(), "text/plain")
+                if match.group(2) == "whitelist":
+                    try:
+                        return self.json(dict(whitelist.state(inst), ok=True))
+                    except whitelist.WhitelistError as ex:
+                        return self.fail(str(ex))
                 if match.group(2) == "players":
                     found = players.report(inst) if inst.meta().get("installed") else None
                     if found is None:
@@ -402,6 +408,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json({"ok": True, "message": "Configuration enregistrée, serveur redémarré"})
             note = " Redémarrez le serveur pour l'appliquer." if inst.running() else ""
             return self.json({"ok": True, "message": "Configuration enregistrée." + note})
+        if action == "whitelist":
+            try:
+                if body.get("do") == "add":
+                    message = whitelist.add(inst, body.get("name"))
+                elif body.get("do") == "remove":
+                    message = whitelist.remove(inst, body.get("name"))
+                elif body.get("do") == "toggle":
+                    message = whitelist.set_enabled(inst, body.get("enabled") is True)
+                else:
+                    return self.fail("Action inconnue")
+            except whitelist.WhitelistError as ex:
+                return self.fail(str(ex))
+            return self.json({"ok": True, "message": message})
         if action == "upnp":
             inst.set_upnp(body["enabled"] is True)
             return self.json({"ok": True, "message": "Ouverture automatique des ports %s" % ("activée" if body["enabled"] is True else "désactivée")})
