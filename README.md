@@ -175,6 +175,21 @@ Section « Mods » de la page d'un serveur, pour les jeux qui le permettent :
 État : installation vérifiée contre les vrais services (Fabric, Paper, Modrinth avec dépendances, BepInEx et mods Thunderstore, Oxide, Workshop).
 Pas encore vérifié : le chargement effectif des mods en jeu, surtout BepInEx sous Wine (LANa force le `winhttp.dll` de BepInEx avec `WINEDLLOVERRIDES`), et le téléchargement des objets du Workshop par les serveurs. uMod limite fortement le nombre de téléchargements : en cas de refus, réessayez une minute plus tard ou déposez le `.cs` à la main.
 
+## Application macOS
+
+`LANa.app` est l'appli de bureau (`desktop/`), avec un Python et Qt intégrés : rien à installer.
+
+```bash
+sh packaging/macos/build.sh      # → packaging/macos/build/LANa.app et LANa-<version>-macos.dmg
+```
+
+- **Compatibilité** : macOS 13 (Ventura) ou plus récent, imposé par Qt 6 (PySide6-Essentials). Une seule app pour Intel et Apple Silicon. Les Mac plus anciens gardent l'interface web (`python3 run.py`).
+- **Contenu** : deux Python autonomes ([python-build-standalone](https://github.com/astral-sh/python-build-standalone), vérifiés par SHA-256) et PySide6 réduit à QtCore, QtGui, QtWidgets et leurs greffons (cocoa, svg, style macOS). L'app fait 190 Mo, l'image disque 81 Mo.
+- **Lanceur** : un petit programme C (`launcher.c`) charge le Python de l'architecture qui tourne et exécute `python -m desktop`. macOS affiche ainsi le nom et l'icône de LANa, pas ceux de Python.
+- **Sans signature Apple** : au premier lancement, faites clic droit sur LANa → Ouvrir, puis Ouvrir.
+
+État : construite et lancée sur Mac Intel (macOS 15) ; la fenêtre s'ouvre au nom de LANa, les polices du panneau se chargent, et l'accueil, la page d'un serveur et ses réglages s'affichent. Pas encore essayée sur Apple Silicon.
+
 ## Systèmes
 
 | Système | État |
