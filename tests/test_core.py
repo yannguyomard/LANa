@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _home = tempfile.mkdtemp(prefix="lana-test-")
 os.environ["LANA_HOME"] = _home
 
-from lana import config, games, instances, jobs, machine, players, runtime, system, upnp, versions, web  # noqa: E402
+from lana import config, games, instances, jobs, machine, mods, players, runtime, system, upnp, versions, web  # noqa: E402
 
 FAKE = {
     "id": "fake", "name": "Faux jeu",
@@ -1229,6 +1229,170 @@ class VersionTests(unittest.TestCase):
             del games._cache["fakesteam"]
         self.assertEqual(branches, ["alpha20.7", "alpha20.7", "public"])
         self.assertEqual(inst.meta()["version"], "public")
+
+
+def _wait_job(test, job):
+    while job.state == "running":
+        time.sleep(0.01)
+    test.assertEqual(job.state, "done", job.lines)
+
+
+class ModsTests(unittest.TestCase):
+    def setUp(self):
+        self.patched = []
+
+    def tearDown(self):
+        for obj, name, old in reversed(self.patched):
+            setattr(obj, name, old)
+        for gid in ("fakemc", "fakets", "fakews"):
+            games._cache.pop(gid, None)
+
+    def patch(self, obj, name, value):
+        self.patched.append((obj, name, getattr(obj, name)))
+        setattr(obj, name, value)
+
+    def make(self, gid, game_mods, **extra):
+        games._cache[gid] = dict(FAKE, id=gid, mods=game_mods, **extra)
+        inst = instances.Instance.create(gid)
+        os.makedirs(inst.server_dir)
+        inst._save_meta(dict(inst.meta(), installed=True, version="1.21.4"))
+        return inst
+
+    def test_definitions(self):
+        folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "games")
+        seen = 0
+        for name in os.listdir(folder):
+            game = json.load(open(os.path.join(folder, name), encoding="utf-8"))
+            spec = game.get("mods")
+            if not spec:
+                continue
+            seen += 1
+            self.assertIn(spec["provider"], mods.PROVIDER_LABELS, name)
+            if spec["provider"] == "thunderstore":
+                self.assertTrue(spec["community"] and spec["loader"] and spec["dir"], name)
+            if spec["provider"] == "workshop":
+                self.assertTrue(spec["appid"] and spec["targets"], name)
+        self.assertGreaterEqual(seen, 7)
+
+    def test_thunderstore_layouts(self):
+        def plan(names):
+            path = os.path.join(_home, "t.zip")
+            with zipfile.ZipFile(path, "w") as zf:
+                for n in names:
+                    zf.writestr(n, "x")
+            members = mods._zip_members(path)
+            m = mods._thunderstore_mapping(members, "A-B")
+            return [m(n) for n in names]
+        self.assertEqual(plan(["manifest.json", "icon.png", "B.dll"]), [None, None, "BepInEx/plugins/A-B/B.dll"])
+        self.assertEqual(plan(["plugins/B.dll", "config/b.cfg"]), ["BepInEx/plugins/A-B/B.dll", "BepInEx/config/b.cfg"])
+        self.assertEqual(plan(["BepInEx/plugins/B.dll", "README.md"]), ["BepInEx/plugins/B.dll", None])
+
+    def test_zip_paths_are_checked(self):
+        path = os.path.join(_home, "evil.zip")
+        with zipfile.ZipFile(path, "w") as zf:
+            zf.writestr("../../x.dll", "x")
+        with self.assertRaises(mods.ModError):
+            mods._zip_members(path)
+        with self.assertRaises(mods.ModError):
+            mods._inside(_home, "../x")
+
+    def test_modrinth_install_with_dependency(self):
+        inst = self.make("fakemc", {"provider": "modrinth"})
+        inst._save_meta(dict(inst.meta(), mc_loader="fabric"))
+        versions_of = {
+            "AAA": [{"id": "v1", "version_number": "1.0", "version_type": "release",
+                     "files": [{"filename": "a-1.0.jar", "primary": True, "url": "u/a", "hashes": {}}],
+                     "dependencies": [{"project_id": "BBB", "dependency_type": "required"}]}],
+            "BBB": [{"id": "v2", "version_number": "2.0", "version_type": "release",
+                     "files": [{"filename": "b-2.0.jar", "primary": True, "url": "u/b", "hashes": {}}], "dependencies": []}]}
+
+        def fetch(url):
+            proj = url.split("/project/")[1].split("/")[0].split("?")[0]
+            return versions_of[proj] if "/version" in url else {"title": proj, "project_type": "mod", "slug": proj}
+        self.patch(runtime, "fetch_json", fetch)
+        self.patch(runtime, "download", lambda url, dest, job, label, sha1=None: open(dest, "w").write(url))
+        _wait_job(self, mods.install(inst, "AAA"))
+        st = mods.state(inst)
+        self.assertEqual(sorted(os.listdir(os.path.join(inst.server_dir, "mods"))), ["a-1.0.jar", "b-2.0.jar"])
+        self.assertEqual(next(e for e in st["entries"] if e["project"] == "BBB")["required_by"], ["modrinth:AAA"])
+        with self.assertRaises(mods.ModError):
+            mods.remove(inst, "modrinth:BBB")   # encore nécessaire à AAA
+        mods.toggle(inst, "modrinth:AAA", False)
+        self.assertEqual(os.listdir(os.path.join(inst.server_dir, "mods")), ["b-2.0.jar"])
+        mods.toggle(inst, "modrinth:AAA", True)
+        mods.remove(inst, "modrinth:AAA")
+        mods.remove(inst, "modrinth:BBB")
+        self.assertEqual(os.listdir(os.path.join(inst.server_dir, "mods")), [])
+        # moteur : le .jar remplace server.jar au lancement seulement s'il est là
+        self.assertEqual(mods.launch_overrides(inst)["replace"], {})
+        open(os.path.join(inst.server_dir, "fabric-server-launch.jar"), "w").close()
+        self.assertEqual(mods.launch_overrides(inst)["replace"], {"server.jar": "fabric-server-launch.jar"})
+
+    def test_manual_upload_found_files_and_configs(self):
+        inst = self.make("fakets", {"provider": "thunderstore", "community": "x", "loader": "L-P", "dir": "BepInEx/plugins",
+                                    "extensions": [".dll", ".zip"], "config_dirs": ["BepInEx/config"]})
+        src = os.path.join(_home, "Mine.dll")
+        open(src, "w").write("dll")
+        with self.assertRaises(mods.ModError):
+            mods.upload(inst, src, "Mine.exe")
+        mods.upload(inst, src, "Mine.dll")
+        archive = os.path.join(_home, "Pack.zip")
+        with zipfile.ZipFile(archive, "w") as zf:
+            zf.writestr("plugins/P.dll", "p")
+            zf.writestr("config/p.cfg", "a=1")
+        mods.upload(inst, archive, "Pack.zip")
+        write(os.path.join(inst.server_dir, "BepInEx", "plugins", "Copied.dll"), "c")
+        st = mods.state(inst)
+        self.assertEqual([e["name"] for e in st["entries"]], ["Mine.dll", "Pack.zip"])
+        self.assertEqual([f["name"] for f in st["found"]], ["Copied.dll"])
+        self.assertEqual(st["config_files"], ["BepInEx/config/p.cfg"])
+        mods.toggle(inst, "found:BepInEx/plugins/Copied.dll", False)
+        self.assertFalse(os.path.exists(os.path.join(inst.server_dir, "BepInEx", "plugins", "Copied.dll")))
+        self.assertEqual(mods.read_config(inst, "BepInEx/config/p.cfg"), "a=1")
+        mods.write_config(inst, "BepInEx/config/p.cfg", "a=2")
+        self.assertEqual(mods.read_config(inst, "BepInEx/config/p.cfg"), "a=2")
+        for bad in ("../instance.json", "BepInEx/plugins/Mine.dll", "/etc/hosts"):
+            with self.assertRaises(mods.ModError):
+                mods.read_config(inst, bad)
+        mods.remove(inst, "manual:Pack.zip")
+        self.assertFalse(os.path.exists(os.path.join(inst.server_dir, "BepInEx", "plugins", "Pack")))
+        self.assertEqual(mods.launch_overrides(inst)["env"], {})   # pas de BepInEx posé : rien à forcer dans Wine
+
+    def test_workshop_targets_keep_manual_values(self):
+        spec = {"provider": "workshop", "appid": 108600, "mod_ids": True,
+                "targets": [{"key": "WorkshopItems", "sep": ";", "what": "items"},
+                            {"key": "Mods", "sep": ";", "what": "mod_ids", "prefix_pz": True},
+                            {"key": "[ServerSettings]ActiveMods", "sep": ",", "what": "items", "file": "Game.ini"},
+                            {"file": "W.json", "json_list": "File_IDs", "what": "items"}], "args": ["-auto"]}
+        inst = self.make("fakews", spec)
+        write(os.path.join(inst.server_dir, "cfg.json"), "WorkshopItems=111\nMods=\\Hand\nOther=1\n")
+        write(os.path.join(inst.server_dir, "Game.ini"), "[ServerSettings]\nX=1\n")
+        details = [{"result": 1, "publishedfileid": "2392709985", "consumer_app_id": 108600, "title": "Lib",
+                    "description": "Workshop ID: 2392709985\nMod ID: tsarslib"}]
+        self.patch(mods, "_get_json", lambda url, data=None: {"response": {"publishedfiledetails": details}} if "Details" in url
+                   else {"response": {"collectiondetails": [{"publishedfileid": "2392709985", "result": 9}]}})
+        self.assertEqual(mods.launch_overrides(inst)["args"], [])
+        mods.install(inst, "https://steamcommunity.com/sharedfiles/filedetails/?id=2392709985")
+        text = read(os.path.join(inst.server_dir, "cfg.json"))
+        self.assertIn("WorkshopItems=111;2392709985", text)
+        self.assertIn("Mods=\\Hand;\\tsarslib", text)
+        self.assertIn("Other=1", text)
+        self.assertEqual(read(os.path.join(inst.server_dir, "Game.ini")), "[ServerSettings]\nX=1\nActiveMods=2392709985\n")
+        self.assertEqual(json.load(open(os.path.join(inst.server_dir, "W.json")))["File_IDs"], [2392709985])
+        self.assertEqual(mods.launch_overrides(inst)["args"], ["-auto"])
+        inst._save_meta(dict(inst.meta(), version="legacy41"))   # Build 41 : identifiants sans « \ »
+        mods.set_mod_ids(inst, "workshop:2392709985", ["tsarslib", "other"])
+        self.assertIn("Mods=\\Hand;tsarslib;other", read(os.path.join(inst.server_dir, "cfg.json")))
+        mods.remove(inst, "workshop:2392709985")
+        text = read(os.path.join(inst.server_dir, "cfg.json"))
+        self.assertIn("WorkshopItems=111\n", text)
+        self.assertIn("Mods=\\Hand\n", text)
+
+    def test_workshop_ids_parsing(self):
+        self.assertEqual(mods._parse_workshop_ids("https://steamcommunity.com/sharedfiles/filedetails/?id=2392709985&x=1 731604991"),
+                         ["2392709985", "731604991"])
+        self.assertEqual(mods._parse_workshop_ids("bonjour"), [])
+        self.assertEqual(mods._strip_bbcode("[img]https://x/y.png[/img] [h1]Salut[/h1] voir https://a.b/c"), "Salut voir")
 
 
 if __name__ == "__main__":

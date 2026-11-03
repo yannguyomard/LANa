@@ -218,5 +218,6 @@
       "max": 10.0
     }
   ],
-  "untested": true
+  "untested": true,
+  "mods": {"provider": "workshop", "appid": 346110, "targets": [{"key": "[ServerSettings]ActiveMods", "sep": ",", "what": "items"}], "args": ["-automanagedmods"], "verified": false, "note": "Le serveur télécharge les mods du Workshop au démarrage (-automanagedmods). Non vérifié sous Wine."}
 }

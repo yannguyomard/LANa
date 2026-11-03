@@ -219,5 +219,6 @@
       "hint": "Plus petit = plus léger"
     }
   ],
-  "untested": true
+  "untested": true,
+  "mods": {"provider": "umod", "game": "rust", "dir": "oxide/plugins", "extensions": [".cs"], "config_dirs": ["oxide/config"], "verified": false, "note": "Plugins Oxide (uMod). Après chaque mise à jour de Rust, Oxide doit être réinstallé : LANa le fait à la mise à jour du serveur."}
 }

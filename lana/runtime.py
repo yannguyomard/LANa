@@ -307,13 +307,16 @@ def download_install(game, server_dir, prefix, job, version=None):
     return {"source_url": url, "version": version} if version else {"source_url": url}
 
 
-def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0):
+def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0, overrides=None):
     """Lance le serveur dans son propre groupe de processus ; retourne le Popen.
 
     `settings` remplit les {jetons} de la commande (ex. {memory_mb} pour la mémoire de Java).
+    `overrides` (mods.launch_overrides) : arguments remplacés (`replace`), ajoutés (`args`), variables (`env`).
     """
     run = games.run_spec(game)
+    overrides = overrides or {}
     cmd = [a.format(**(settings or {})) if "{" in a else a for a in run["command"]]
+    cmd = [overrides.get("replace", {}).get(a, a) for a in cmd] + list(overrides.get("args", []))
     env = dict(os.environ)
     cwd = os.path.join(server_dir, run.get("cwd", "."))
     if system.uses_wine(run["runtime"]):
@@ -327,6 +330,7 @@ def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0)
             raise RuntimeError("Java %d ou plus récent est requis." % java_min)
         cmd = [java] + cmd
     env.update(run.get("env", {}))
+    env.update(overrides.get("env", {}))
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     log = open(log_path, "ab")
     log.write(("\n===== Démarrage %s =====\n" % time.strftime("%Y-%m-%d %H:%M:%S")).encode())

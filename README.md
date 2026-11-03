@@ -113,6 +113,27 @@ La section n'apparaît que pour ces jeux, et la liste dit s'il n'existe qu'une s
 Un changement de version se fait serveur arrêté. La sauvegarde est d'abord archivée (`…-avant-version.tar.gz`), parce qu'un monde ouvert dans une version récente ne se charge pas toujours dans une plus ancienne.
 La version choisie reste celle du serveur : « Réessayer » ou une réinstallation reprennent la même.
 
+## Mods
+
+Section « Mods » de la page d'un serveur, pour les jeux qui le permettent :
+
+| Jeu | Source automatique | Chargeur installé par LANa | Ajout manuel |
+|---|---|---|---|
+| Minecraft (Java) | Modrinth (mods ou plugins compatibles avec la version installée) | Fabric (mods) ou Paper (plugins), au choix | `.jar` dans `mods/` ou `plugins/` |
+| Valheim, V Rising | Thunderstore | BepInEx | `.dll` ou `.zip` dans `BepInEx/plugins/` |
+| Rust | uMod | Oxide | `.cs` dans `oxide/plugins/` |
+| Project Zomboid, ARK, Unturned | Workshop Steam (lien d'un objet ou d'une collection) | — (le serveur télécharge les objets au démarrage) | PZ : `.zip` dans `Zomboid/mods/` |
+
+- **Simple** : chercher, cliquer « Installer ». Le chargeur et les dépendances s'installent tout seuls. Un mod se désactive d'une case, sans être supprimé, et un mod encore nécessaire à un autre ne peut pas être retiré. « Rechercher les mises à jour » met tout à jour d'un coup.
+- **Avancé** : choisir la version d'un mod Minecraft, déposer ses propres fichiers (un `.zip` est décompressé), voir les fichiers posés par chaque mod, modifier les fichiers de réglages des mods (une copie `.bak` est gardée), corriger les identifiants de mods d'un objet du Workshop (Project Zomboid).
+- **Fichiers copiés à la main** dans le dossier des mods (Finder, autre serveur) : ils apparaissent dans la liste et s'activent ou se retirent comme les autres.
+- **Workshop** : LANa écrit les numéros dans la configuration du jeu (`WorkshopItems` et `Mods` pour Project Zomboid, avec le préfixe `\` de la Build 42 ; `ActiveMods` et `-automanagedmods` pour ARK ; `WorkshopDownloadConfig.json` pour Unturned). Les valeurs que vous y avez mises vous-même sont conservées. Steam ne permet pas de chercher dans le Workshop sans clé : la page propose un lien vers le Workshop, et on y copie le lien de l'objet.
+- **Changement de version** (Minecraft) : le moteur Fabric ou Paper suit la nouvelle version ; les mods d'une autre version sont signalés par la recherche de mises à jour. Après une mise à jour de Rust, Oxide est réinstallé.
+- **Moteur Minecraft** : Fabric télécharge ses bibliothèques au premier démarrage. Le monde est conservé d'un moteur à l'autre.
+
+État : installation vérifiée contre les vrais services (Fabric, Paper, Modrinth avec dépendances, BepInEx et mods Thunderstore, Oxide, Workshop).
+Pas encore vérifié : le chargement effectif des mods en jeu, surtout BepInEx sous Wine (LANa force le `winhttp.dll` de BepInEx avec `WINEDLLOVERRIDES`), et le téléchargement des objets du Workshop par les serveurs. uMod limite fortement le nombre de téléchargements : en cas de refus, réessayez une minute plus tard ou déposez le `.cs` à la main.
+
 ## Systèmes
 
 | Système | État |
@@ -155,6 +176,7 @@ Un jeu est un fichier `games/<id>.json`, sans code Python. Il décrit :
 - variantes Linux : toute clé `nom_linux` (au premier niveau, dans `install` ou dans `config`) remplace `nom` quand le serveur tourne nativement sous Linux ; `run.linux` / `run.windows` remplacent la commande de lancement ;
 - `compat` : incompatibilité constatée en test (`level` `warn` ou `bad`, `note`). Avec `bad`, l'installation est refusée et la raison affichée ;
 - `log_file` : journal du jeu s'il n'écrit pas sur la sortie standard ;
+- `mods` : gestion des mods (`provider` = `modrinth`, `thunderstore` avec `community` et `loader`, `umod` avec `game`, ou `workshop` avec `appid` et `targets`) ; `dir` et `extensions` pour l'ajout manuel, `config_dirs` pour les réglages modifiables, `verified` et `note` affichés à l'utilisateur ;
 - `world_zip` : accepte l'import de mondes `.zip` (`marker` = fichier qui prouve que c'est un monde, ex. `level.dat` ; `into`, facultatif = sous-dossier de la sauvegarde où l'extraire, qui peut citer la config, ex. `DedicatedServer/Multiplayer/{SaveSlot:010d}` pour Sons of the Forest) ;
 - `config` : fichier, format (`json`, `properties`, `ini` à sections avec des clés `[Section]Clé`, `cfg` pour les `server.cfg` de type Source/Quake (`prefix`, `quote`), `xml_props`, `xml_elements`, `arma` pour `clé = valeur;`, `none` si tout passe par la ligne de commande, ou `ue_options` pour la ligne `OptionSettings=(…)` d'Unreal) ; seules les lignes des réglages connus et modifiés sont réécrites ; `enforce` = réglages imposés même dans une config existante ; `seed_from` (fichier par défaut du jeu à copier comme point de départ) et `initial` (valeurs imposées par LANa ; le jeton `"{random}"` devient un mot de passe aléatoire) ;
 - `fields` : les paramètres éditables. Types : `text`, `int`, `float`, `bool`, `enum`, `tags`,
@@ -174,7 +196,7 @@ python3 -m unittest discover -s tests
 
 ```
 run.py            lanceur (lancer.bat sous Windows)
-lana/             machine, games, config, runtime (Wine, SteamCMD, processus), system (différences macOS/Linux/Windows), instances, jobs, players, upnp, versions, web
+lana/             machine, games, config, runtime (Wine, SteamCMD, processus), system (différences macOS/Linux/Windows), instances, jobs, mods, players, upnp, versions, web
 games/            une définition JSON par jeu
 web/index.html    interface
 tests/            tests unitaires (aucun ne lance Wine)

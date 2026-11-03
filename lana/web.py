@@ -10,11 +10,12 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, games, instances, jobs, machine, paths, players, system, upnp, versions
+from . import __version__, games, instances, jobs, machine, mods, paths, players, system, upnp, versions
 from .instances import Instance, InstanceError
 
 ROUTE_INSTANCE = re.compile(r"^/api/instances/([a-z0-9-]+)(?:/([a-z-]+))?$")
 ROUTE_JOB = re.compile(r"^/api/jobs/([0-9a-f]+)$")
+ROUTE_MODS = re.compile(r"^/api/instances/([a-z0-9-]+)/mods(?:/([a-z-]+))?$")
 ROUTE_VERSIONS = re.compile(r"^/api/games/([a-z0-9_]+)/versions$")
 ROUTE_DOWNLOAD = re.compile(r"^/api/instances/([a-z0-9-]+)/backups/([A-Za-z0-9._-]+)$")
 # Fichiers de l'interface (polices…) : noms simples uniquement, sans « .. » possible, et types en liste blanche.
@@ -72,6 +73,7 @@ def instance_payload(inst):
     out["install_type"] = spec["type"]
     out["install_help"] = spec.get("help", "")
     out["versions"] = versions.kind(game)
+    out["mods"] = mods.spec(game)["provider"] if mods.spec(game) else None
     out["version"] = inst.meta().get("version", "")
     tracking = game.get("players")
     out["players_tracking"] = {"verified": tracking.get("verified", False), "note": tracking.get("note", "")} if tracking else None
@@ -196,6 +198,9 @@ class Handler(BaseHTTPRequestHandler):
             if download:
                 inst = self.instance(download.group(1))
                 return self.send_file(inst.backup_path(download.group(2)))
+            modreq = ROUTE_MODS.match(path)
+            if modreq:
+                return self.mods_get(self.instance(modreq.group(1)), modreq.group(2))
             wanted = ROUTE_VERSIONS.match(path)
             if wanted:
                 try:
@@ -239,6 +244,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.handle_import(upload.group(1))
         if upload and upload.group(2) == "server-files":
             return self.handle_server_files(upload.group(1))
+        modreq = ROUTE_MODS.match(path)
+        if modreq and modreq.group(2) == "upload":
+            return self.handle_mod_upload(modreq.group(1))
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
         except ValueError:
@@ -284,7 +292,69 @@ class Handler(BaseHTTPRequestHandler):
         except InstanceError as ex:
             self.fail(str(ex))
 
+    def query(self):
+        return {k: v[0] for k, v in urllib.parse.parse_qs(self.path.partition("?")[2]).items()}
+
+    def mods_get(self, inst, action):
+        q = self.query()
+        try:
+            if action is None:
+                return self.json(mods.state(inst))
+            if action == "search":
+                return self.json(dict(mods.search(inst, q.get("q", ""), q.get("page", 0)), ok=True))
+            if action == "versions":
+                return self.json({"ok": True, "versions": mods.project_versions(inst, q.get("project", ""))})
+            if action == "updates":
+                return self.json({"ok": True, "updates": mods.check_updates(inst)})
+            if action == "config":
+                return self.reply(200, mods.read_config(inst, q.get("path", "")), "text/plain")
+        except mods.ModError as ex:
+            return self.fail(str(ex))
+        self.fail("Introuvable", 404)
+
+    def mods_post(self, inst, action, body):
+        try:
+            if action == "install":
+                found = mods.install(inst, body.get("project"), body.get("version") or None)
+                if isinstance(found, str):   # Workshop : rien à télécharger maintenant
+                    return self.json({"ok": True, "message": found})
+                return self.json({"ok": True, "job": found.id})
+            if action == "loader":
+                return self.json({"ok": True, "job": mods.set_loader(inst, body.get("loader")).id})
+            if action == "toggle":
+                return self.json({"ok": True, "message": mods.toggle(inst, body["key"], body.get("enabled") is True)})
+            if action == "remove":
+                return self.json({"ok": True, "message": mods.remove(inst, body["key"])})
+            if action == "update":
+                keys = body.get("keys")
+                return self.json({"ok": True, "job": mods.update(inst, keys if isinstance(keys, list) else None).id})
+            if action == "modids":
+                return self.json({"ok": True, "message": mods.set_mod_ids(inst, body["key"], body.get("mod_ids") or [])})
+            if action == "config":
+                return self.json({"ok": True, "message": mods.write_config(inst, body["path"], str(body["text"]))})
+        except mods.ModError as ex:
+            return self.fail(str(ex))
+        self.fail("Action inconnue", 404)
+
+    def handle_mod_upload(self, instance_id):
+        try:
+            inst = self.instance(instance_id)
+            filename = urllib.parse.unquote(self.headers.get("X-Filename", ""))
+            tmp = os.path.join(inst.dir, "mod-upload.tmp")
+            try:
+                self.receive_upload(tmp)
+                message = mods.upload(inst, tmp, os.path.basename(filename))
+            finally:
+                if os.path.exists(tmp):
+                    os.remove(tmp)
+            self.json({"ok": True, "message": message})
+        except (InstanceError, mods.ModError) as ex:
+            self.fail(str(ex))
+
     def route_post(self, path, body):
+        modreq = ROUTE_MODS.match(path)
+        if modreq:
+            return self.mods_post(self.instance(modreq.group(1)), modreq.group(2), body)
         if path == "/api/instances":
             game = games.get(body.get("game", ""))
             inst = Instance.create(game["id"], body.get("name"))

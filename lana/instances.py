@@ -9,7 +9,7 @@ import threading
 import time
 import zipfile
 
-from . import config, games, jobs, machine, paths, runtime, system, upnp, versions
+from . import config, games, jobs, machine, mods, paths, runtime, system, upnp, versions
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 KEEP_BACKUPS = 10
@@ -154,6 +154,7 @@ class Instance:
             else:
                 raise RuntimeError("Type d'installation non géré : %s" % spec["type"])
             self._finish_install(job.log, extra, accept_eula)
+            mods.after_install(self, job)
 
         return jobs.start("Installation de %s" % game["name"], work)
 
@@ -249,7 +250,8 @@ class Instance:
                                     % (settings["memory_mb"], ram))
             try:
                 _procs[self.id] = runtime.start_process(self.game, self.server_dir, self.prefix, self.log_path,
-                                                        settings=settings, java_min=self.meta().get("java_min", 0))
+                                                        settings=settings, java_min=self.meta().get("java_min", 0),
+                                                        overrides=mods.launch_overrides(self))
             except RuntimeError as ex:
                 raise InstanceError(str(ex))
             self._set_pgid(_procs[self.id].pid)

@@ -169,5 +169,6 @@
       }
     }
   ],
-  "untested": true
+  "untested": true,
+  "mods": {"provider": "workshop", "appid": 304930, "targets": [{"file": "Servers/lana/WorkshopDownloadConfig.json", "json_list": "File_IDs", "what": "items"}], "verified": false, "note": "Le serveur télécharge les objets du Workshop au démarrage."}
 }

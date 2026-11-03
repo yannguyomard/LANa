@@ -261,6 +261,20 @@ table.pl tr.pr:hover{background:var(--surface-2)}
 table.pl tr.more td{background:var(--bg-2)}
 .tbl{overflow-x:auto}
 .bk{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line);flex-wrap:wrap}
+/* mods */
+.mods-sub{font:600 12px/1 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--mut);margin:22px 0 10px}
+.mod{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line)}
+.mod .ic,.mod-card .ic{width:40px;height:40px;border-radius:8px;background:var(--bg-2);object-fit:cover;border:1px solid var(--line)}
+.mod .nm{font-weight:600;overflow-wrap:anywhere}.mod .sm{font-size:12.5px;color:var(--mut);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.mod .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.mod.off .nm,.mod.off .ic{opacity:.5}
+.mod-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-top:12px}
+.mod-card{border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;display:grid;grid-template-columns:40px minmax(0,1fr);gap:10px;background:var(--bg-2)}
+.mod-card .foot{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mod-job{font:12px/1.5 var(--font-mono);color:var(--mut);margin-top:10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.mods details{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}.mods summary{cursor:pointer;color:var(--ink-2)}
+.mods textarea{width:100%;min-height:260px;font:12.5px/1.5 var(--font-mono);color:var(--ink);background:var(--bg-2);border:var(--border-w) solid var(--line);border-radius:var(--radius-sm);padding:10px;box-sizing:border-box}
+@media (max-width:600px){.mod{grid-template-columns:32px minmax(0,1fr)}.mod .ic{width:32px;height:32px}.mod .acts{grid-column:1/-1;justify-content:flex-start}}
 
 /* toasts */
 #toast{position:fixed;right:20px;bottom:20px;z-index:20;display:flex;flex-direction:column;gap:8px;max-width:min(420px,calc(100vw - 40px))}
@@ -680,6 +694,167 @@ function playersCard(tracking,n){
   return {card,update};
 }
 
+// ---------- mods ----------
+const KIND_LABEL={mod:"mod",plugin:"plugin",loader:"chargeur",workshop:"Workshop",manual:"ajouté à la main"};
+const fmtN=n=>n>=1e6?(n/1e6).toFixed(1).replace(".",",")+" M":n>=1e3?Math.round(n/1e3)+" k":String(n||0);
+const modIcon=url=>{const i=mk("img",{className:"ic",alt:"",loading:"lazy",referrerPolicy:"no-referrer"});if(url)i.src=url;else i.style.visibility="hidden";i.onerror=()=>i.style.visibility="hidden";return i};
+function modsSection(id,n){
+  const base=`/api/instances/${id}/mods`;
+  const sec=mk("section",{className:"block"},label(n,"Mods")),card=mk("div",{className:"card mods"});sec.append(card);
+  const jobLine=mk("div",{className:"mod-job",role:"status"});
+  let st=null,searchNode=null,searchFor="",cards=[];
+  // suit une tâche (installation, mise à jour) dans la section, sans quitter la page
+  async function follow(jobId){
+    for(;;){const j=await api("/api/jobs/"+jobId).catch(()=>null);
+      if(!j||!j.lines){jobLine.textContent="Suivi de la tâche perdu (LANa a redémarré ?)";break}
+      jobLine.textContent=j.lines.slice(-4).join("\n");jobLine.style.color=j.state==="error"?"var(--bad)":"";
+      if(j.state!=="running"){toast(j.state==="done"?"Mods : terminé":"Mods : échec, voir le détail",j.state!=="done");break}
+      await new Promise(r=>setTimeout(r,1200))}
+    await load();
+  }
+  async function post(btns,path,body){
+    btns.forEach(b=>b.disabled=true);
+    try{const r=await api(base+"/"+path,body);if(!r.ok)toast(r.message,true);else if(r.job){jobLine.textContent="…";await follow(r.job)}else{toast(r.message);await load()}}
+    catch(e){toast("Erreur réseau",true)}
+    btns.forEach(b=>b.disabled=false);
+  }
+  function row(e,found){
+    const on=found||e.enabled!==false;
+    const box=mk("input",{type:"checkbox",checked:on,disabled:e.kind==="loader","aria-label":(on?"Désactiver ":"Activer ")+e.name});
+    box.onchange=()=>post([box],"toggle",{key:e.key,enabled:box.checked});
+    const rm=btn("Retirer","d",{onclick:()=>confirm(`Retirer ${e.name} ? Ses fichiers sont supprimés.`)&&post([rm],"remove",{key:e.key})});
+    const sub=[e.version?"v"+e.version.replace(/^v/,""):"",KIND_LABEL[e.kind]||"",found?"trouvé dans le dossier":"",
+      (e.required_by||[]).length?"requis par "+e.required_by.map(k=>(st.entries.find(x=>x.key===k)||{}).name||k).join(", "):""].filter(Boolean).join(" · ");
+    const name=e.url?mk("a",{href:e.url,target:"_blank",rel:"noopener",textContent:e.name}):mk("span",{textContent:e.name});
+    const text=mk("div",{},mk("div",{className:"nm"},name),mk("div",{className:"hint",textContent:sub}));
+    if(e.summary&&!found)text.append(mk("div",{className:"sm",textContent:e.summary}));
+    if(e.kind==="workshop"&&st.provider==="workshop"&&e.mod_ids){
+      const ids=mk("input",{value:e.mod_ids.join(";"),style:"max-width:320px","aria-label":"Identifiants de mods"});
+      const save=btn("Enregistrer","",{onclick:()=>post([save],"modids",{key:e.key,mod_ids:ids.value.split(/[;,\s]+/).filter(Boolean)})});
+      text.append(mk("div",{className:"row",style:"margin-top:6px"},mk("span",{className:"hint",textContent:"Mod ID :"}),ids,save));
+    }
+    const files=(e.files||[]).length?tip("Fichiers :\n"+e.files.join("\n")):null;
+    return mk("div",{className:"mod"+(on?"":" off")},modIcon(e.icon),text,
+      mk("div",{className:"acts"},...(files?[files]:[]),mk("label",{className:"chk",title:e.kind==="loader"?"Le chargeur reste actif":""},box,"Actif"),rm));
+  }
+  async function load(){
+    st=await api(base);
+    if(st.ok===false){card.replaceChildren(mk("div",{className:"hint",textContent:st.message}));return}
+    render();
+  }
+  function render(){
+    const kids=[];
+    if(st.note)kids.push(mk("div",{className:"msg "+(st.verified?"":"warn"),style:"margin:0 0 12px",textContent:(st.verified?"":"À tester : ")+st.note}));
+    // moteur (Minecraft)
+    if(st.loader){
+      const sel=mk("select",{"aria-label":"Moteur du serveur"},...st.loader.options.map(o=>mk("option",{value:o.id,textContent:o.label,selected:o.id===st.loader.current})));
+      const go=btn("Installer ce moteur","",{onclick:()=>{if(st.running){toast("Arrêtez d'abord le serveur",true);return}
+        if(confirm(`Passer le serveur sur ${sel.selectedOptions[0].textContent} ? Le monde est conservé.`))post([go,sel],"loader",{loader:sel.value})}});
+      kids.push(mk("div",{className:"row"},mk("span",{className:"hint",textContent:"Moteur du serveur"}),sel,go),
+        mk("div",{className:"hint",style:"margin-top:6px",textContent:st.loader.current==="vanilla"?
+          "Le serveur Minecraft officiel ne charge ni mods ni plugins : choisissez Fabric pour des mods, ou Paper pour des plugins (plus léger, conseillé pour des améliorations côté serveur).":
+          `Minecraft ${st.loader.mc_version||"?"} · seuls les ${st.loader.kind}s compatibles avec cette version sont proposés.`+(st.hidden?` ${st.hidden} élément(s) installé(s) pour un autre moteur sont mis de côté.`:"")}));
+    }
+    // installés
+    const all=st.entries.length+st.found.length;
+    const bUp=btn("Rechercher les mises à jour","",{onclick:async()=>{bUp.disabled=true;const r=await api(base+"/updates").catch(()=>({ok:false,message:"Erreur réseau"}));bUp.disabled=false;
+      if(!r.ok){toast(r.message,true);return}const n=Object.keys(r.updates).length;
+      if(!n){toast("Tout est à jour");return}
+      if(confirm(`${n} mise(s) à jour :\n`+Object.entries(r.updates).map(([k,v])=>`${(st.entries.find(e=>e.key===k)||{}).name||k} → ${v}`).join("\n")+"\n\nTout mettre à jour ?"))post([bUp],"update",{})}});
+    kids.push(mk("div",{className:"mods-sub",textContent:`Installés (${all})`}));
+    if(!all)kids.push(mk("div",{className:"empty",textContent:st.provider==="workshop"?"Aucun objet du Workshop pour l'instant.":"Aucun mod pour l'instant. Cherchez-en un ci-dessous."}));
+    st.entries.forEach(e=>kids.push(row(e,false)));
+    st.found.forEach(e=>kids.push(row(e,true)));
+    if(st.entries.some(e=>e.provider!=="workshop"&&e.provider!=="manual"))kids.push(mk("div",{className:"row",style:"margin-top:10px"},bUp));
+    if(st.running&&all)kids.push(mk("div",{className:"hint",style:"margin-top:8px",textContent:"Les changements s'appliquent au prochain démarrage du serveur."}));
+    // ajouter
+    const ready=!st.loader||st.loader.kind;
+    kids.push(mk("div",{className:"mods-sub",textContent:st.provider==="workshop"?"Ajouter depuis le Workshop":`Ajouter (${st.provider_label})`}));
+    if(!ready)kids.push(mk("div",{className:"hint",textContent:"Installez d'abord Fabric ou Paper ci-dessus."}));
+    else{
+      const want=st.loader?st.loader.current:"";   // la recherche (et ses résultats) survit aux installations
+      if(!searchNode||searchFor!==want){searchNode=searchBox();searchFor=want}
+      cards.forEach(c=>c.sync());kids.push(searchNode);
+    }
+    kids.push(jobLine);
+    kids.push(advanced());
+    card.replaceChildren(...kids);
+  }
+  function searchBox(){
+    const ws=st.provider==="workshop";
+    const q=mk("input",{type:"search",placeholder:ws?"Lien ou numéro d'un objet ou d'une collection du Workshop":`Rechercher un ${st.loader?st.loader.kind:"mod"}…`,style:"flex:1;min-width:200px","aria-label":"Recherche de mods"});
+    const res=mk("div",{className:"mod-results"}),more=btn("Plus de résultats","",{hidden:true});
+    let page=0;
+    const go=btn(ws?"Voir":"Chercher","p");
+    async function run(reset){
+      if(reset){page=0;res.replaceChildren();cards=[]}
+      if(ws&&!q.value.trim()){toast("Collez d'abord un lien du Workshop",true);return}
+      go.disabled=true;
+      const r=await api(`${base}/search?q=${encodeURIComponent(q.value)}&page=${page}`).catch(()=>({ok:false,message:"Erreur réseau"}));
+      go.disabled=false;
+      if(!r.ok){toast(r.message,true);return}
+      if(!r.results.length&&!page)res.replaceChildren(mk("div",{className:"hint",textContent:r.hint||"Aucun résultat."}));
+      r.results.forEach(x=>res.append(resultCard(x)));
+      more.hidden=ws||(page+1)*20>=r.total;
+    }
+    go.onclick=()=>run(true);q.onkeydown=e=>{if(e.key==="Enter")run(true)};
+    more.onclick=()=>{page++;run(false)};
+    const top=mk("div",{className:"row"},q,go);
+    if(ws)top.append(mk("a",{className:"b",href:st.workshop_url,target:"_blank",rel:"noopener",textContent:"Ouvrir le Workshop ↗"}));
+    if(!ws)setTimeout(()=>run(true),0);   // les plus téléchargés, pour démarrer
+    return mk("div",{},top,ws?mk("div",{className:"hint",style:"margin-top:6px",textContent:"Le Workshop ne se consulte pas sans compte Steam depuis LANa : ouvrez-le, copiez le lien d'un objet (ou d'une collection entière), puis collez-le ici."}):null,res,more);
+  }
+  function resultCard(x){
+    const mine=st.entries.some(e=>e.project===x.project);
+    const b=btn(mine?"Installé":x.loader?"Chargeur (automatique)":st.provider==="workshop"?"Ajouter":"Installer","p",{disabled:mine||x.loader||x.wrong_game});
+    b.onclick=()=>post([b],"install",{project:x.project}).then(sync);
+    function sync(){if(st.entries.some(e=>e.project===x.project)){b.textContent="Installé";b.disabled=true}else if(b.textContent==="Installé"){b.textContent=st.provider==="workshop"?"Ajouter":"Installer";b.disabled=false}}
+    cards.push({sync});
+    const foot=mk("div",{className:"foot"},b,mk("span",{className:"hint",textContent:(x.downloads?fmtN(x.downloads)+(st.provider==="workshop"?" abonnés":" téléchargements"):"")+(x.author?" · "+x.author:"")}));
+    if(x.side==="client")foot.append(mk("span",{className:"tagx caps",textContent:"côté joueurs",title:"Indiqué par l'auteur comme un mod pour les joueurs : il ne sert probablement à rien sur le serveur."}));
+    else if(x.side==="server")foot.append(mk("span",{className:"tagx caps",textContent:"côté serveur",title:"Indiqué par l'auteur comme utile sur le serveur. Vérifiez sur sa page si les joueurs doivent aussi l'installer."}));
+    if(x.versions&&!mine){
+      const pick=mk("button",{type:"button",className:"ghost caps",textContent:"Autre version…",onclick:async()=>{
+        pick.disabled=true;const r=await api(`${base}/versions?project=${encodeURIComponent(x.project)}`).catch(()=>({ok:false,message:"Erreur réseau"}));
+        if(!r.ok||!r.versions.length){toast(r.message||"Aucune version compatible",true);pick.disabled=false;return}
+        const sel=mk("select",{"aria-label":"Version du mod"},...r.versions.map(v=>mk("option",{value:v.id,textContent:`${v.label} · ${v.date}`})));
+        pick.replaceWith(sel);b.textContent="Installer cette version";b.onclick=()=>post([b,sel],"install",{project:x.project,version:sel.value}).then(sync)}});
+      foot.append(pick);
+    }
+    const title=x.url?mk("a",{href:x.url,target:"_blank",rel:"noopener",textContent:x.name}):x.name;
+    return mk("div",{className:"mod-card"},modIcon(x.icon),mk("div",{style:"min-width:0"},mk("div",{className:"nm",style:"font-weight:600;overflow-wrap:anywhere"},title),mk("div",{className:"sm hint",textContent:x.summary})),foot);
+  }
+  function advanced(){
+    const d=mk("details",{},mk("summary",{textContent:"Avancé : fichiers, dossier, réglages des mods"}));
+    if(st.manual){
+      const file=mk("input",{type:"file",accept:(st.loader?[".jar"]:st.extensions).join(","),style:"max-width:340px"});
+      const add=btn("Ajouter le fichier","",{onclick:async()=>{
+        const f=file.files[0];if(!f){toast("Choisissez d'abord un fichier",true);return}
+        add.disabled=true;toast("Envoi en cours…");
+        try{const r=await(await fetch(base+"/upload",{method:"POST",headers:{"X-LANa":"1","X-Filename":encodeURIComponent(f.name)},body:f})).json();toast(r.message,!r.ok);if(r.ok)await load()}catch(e){toast("Erreur réseau",true)}
+        add.disabled=false}});
+      d.append(mk("div",{className:"hint",style:"margin:12px 0 8px"},"Ajout manuel (",(st.loader?[".jar"]:st.extensions).join(", "),") : le fichier est posé dans ",mk("span",{className:"mono",textContent:st.dir}),
+        ". Une archive .zip est décompressée. Les fichiers copiés directement dans ce dossier apparaissent aussi dans la liste.",tip(st.dir_path)),
+        mk("div",{className:"row"},file,add));
+    }
+    if(st.config_files.length){
+      const sel=mk("select",{"aria-label":"Fichier de réglages"},mk("option",{value:"",textContent:"Choisir un fichier de réglages…"}),...st.config_files.map(f=>mk("option",{value:f,textContent:f})));
+      const area=mk("textarea",{hidden:true,spellcheck:false,"aria-label":"Contenu du fichier"});
+      const save=btn("Enregistrer","p",{hidden:true,onclick:()=>post([save],"config",{path:sel.value,text:area.value})});
+      sel.onchange=async()=>{if(!sel.value){area.hidden=save.hidden=true;return}
+        const t=await api(`${base}/config?path=${encodeURIComponent(sel.value)}`);
+        if(typeof t!=="string"){toast(t.message,true);return}area.value=t;area.hidden=save.hidden=false};
+      d.append(mk("div",{className:"hint",style:"margin:16px 0 8px",textContent:"Réglages des mods (créés par les mods à leur premier démarrage). Une copie .bak est gardée à chaque enregistrement."}),
+        mk("div",{className:"row"},sel),area,mk("div",{className:"row",style:"margin-top:8px"},save));
+    }else d.append(mk("div",{className:"hint",style:"margin-top:12px",textContent:"Les fichiers de réglages des mods apparaîtront ici après un premier démarrage du serveur avec les mods."}));
+    if(st.provider==="workshop")d.append(mk("div",{className:"hint",style:"margin-top:12px",textContent:"LANa écrit les numéros dans la configuration du jeu ; les valeurs que vous y avez mises vous-même sont conservées."}));
+    return d;
+  }
+  card.append(mk("div",{className:"hint",textContent:"Chargement des mods…"}));
+  load();
+  return sec;
+}
+
 // ---------- page d'un serveur ----------
 async function serverView(id){
   const nav=routing;
@@ -767,6 +942,8 @@ async function serverView(id){
         mk("div",{className:"row"},picker.el,bList,bVer)));
   }
 
+  const modsSec=s.mods?modsSection(id,n++):null;
+
   // sauvegardes
   const bk=mk("section",{className:"block"},label(n++,"Sauvegardes",tip(`Monde en cours :\n${s.save_path}\n\nArchives :\n${s.backup_dir}`)));const bkc=mk("div",{className:"card"});bk.append(bkc);
   const bBack=btn("Sauvegarder maintenant","",{onclick:()=>act([bBack],`/api/instances/${id}/backup`,{},()=>route())});
@@ -796,7 +973,7 @@ async function serverView(id){
   await swap(()=>{
     setTheme(s.game);mountScene();
     const v=$("#view");v.innerHTML="";
-    v.append(mk("a",{className:"back caps",href:"#/",textContent:"← Accueil"}),enter(head,0),enter(pc.card,1),settings,...(vers?[vers]:[]),bk,logc,del);
+    v.append(mk("a",{className:"back caps",href:"#/",textContent:"← Accueil"}),enter(head,0),enter(pc.card,1),settings,...(vers?[vers]:[]),...(modsSec?[modsSec]:[]),bk,logc,del);
   },nav);
   if(nav!==routing)return;
 

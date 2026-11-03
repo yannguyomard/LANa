@@ -138,5 +138,6 @@
       "hint": "Ouvrir aussi le port suivant (UDP)"
     }
   ],
-  "untested": true
+  "untested": true,
+  "mods": {"provider": "thunderstore", "community": "valheim", "loader": "denikson-BepInExPack_Valheim", "dir": "BepInEx/plugins", "extensions": [".dll", ".zip"], "config_dirs": ["BepInEx/config"], "verified": false, "note": "Mods BepInEx sous Wine : chargement à vérifier sur votre machine (premier démarrage plus long). Les joueurs doivent souvent avoir les mêmes mods."}
 }

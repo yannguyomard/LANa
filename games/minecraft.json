@@ -82,5 +82,6 @@
     {"key": "simulation-distance", "label": "Distance de simulation (chunks)", "type": "int", "min": 3, "max": 32, "default": 6, "group": "Performances"},
     {"key": "lana:memory_mb", "label": "Mémoire allouée à Java (Mo)", "type": "int", "min": 512, "max": 16384, "default": 1536, "group": "Performances",
      "hint": "Laissez au moins 2 Go libres pour macOS. 1536 à 2048 suffisent pour quelques joueurs"}
-  ]
+  ],
+  "mods": {"provider": "modrinth"}
 }

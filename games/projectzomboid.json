@@ -188,5 +188,6 @@
       "max": 16384,
       "hint": "Le script officiel réserve 16 Go ; 3 à 4 Go suffisent pour quelques joueurs. Laissez au moins 1,5 Go au système."
     }
-  ]
+  ],
+  "mods": {"provider": "workshop", "appid": 108600, "mod_ids": true, "dir": "Zomboid/mods", "extensions": [".zip"], "targets": [{"key": "WorkshopItems", "sep": ";", "what": "items"}, {"key": "Mods", "sep": ";", "what": "mod_ids", "prefix_pz": true}], "verified": false, "note": "Le serveur télécharge les objets du Workshop à son démarrage. Chaque objet peut contenir plusieurs mods : vérifiez leurs identifiants (« Mod ID » sur la page du Workshop)."}
 }

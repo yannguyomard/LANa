@@ -277,5 +277,6 @@
       "required": false,
       "hint": "Obligatoire si le RCON est activé"
     }
-  ]
+  ],
+  "mods": {"provider": "thunderstore", "community": "v-rising", "loader": "BepInEx-BepInExPack_V_Rising", "dir": "BepInEx/plugins", "extensions": [".dll", ".zip"], "config_dirs": ["BepInEx/config"], "verified": false, "note": "Mods BepInEx sous Wine : chargement à vérifier sur votre machine. Le premier démarrage télécharge des bibliothèques Unity et prend plusieurs minutes."}
 }
