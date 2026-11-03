@@ -145,7 +145,8 @@ class MainWindow(QMainWindow):
             self.loading = False
             self.statusBar().showMessage("Lecture des serveurs impossible : " + message, 8000)
 
-        run_async(core.servers, done=done, failed=failed)
+        detail = self.page.server_id if self.stack.currentWidget() is self.page else None
+        run_async(core.servers, detail, done=done, failed=failed)
 
     def _render(self):
         self.home.update_from(self.servers, self.transient)
@@ -154,6 +155,9 @@ class MainWindow(QMainWindow):
             current = next((s for s in self.servers if s["id"] == self.page.server_id), None)
             if current is None:
                 self.go("servers")
+            elif current.get("installed") and "fields" not in current:
+                # Résumé seulement (serveur arrêté, page tout juste ouverte) : on attend le détail complet.
+                self.refresh()
             else:
                 self.page.update_from(current, self.transient)
 
@@ -218,7 +222,7 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "LANa", "%s.\n\n%s" % (title, message))
 
     def retry(self, server):
-        eula = server.get("eula")
+        eula = core.game(server["game"]).get("eula")   # le résumé d'un serveur arrêté ne la contient pas
         if eula:
             box = QMessageBox(QMessageBox.Question, "Réessayer l'installation",
                               "Ce jeu demande d'accepter son contrat de licence :<br><a href=\"%s\">%s</a><br><br>"

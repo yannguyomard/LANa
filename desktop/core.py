@@ -41,11 +41,15 @@ def data_dir():
 
 # ---------- lecture ----------
 
-def servers():
+def servers(detail_id=None):
+    """Tous les serveurs. Détail complet (réglages, UPnP, sauvegardes…) seulement pour celui qu'on affiche
+    (detail_id) et pour ceux qui tournent (leur adresse) ; les autres en résumé, bien plus rapide à lire."""
     out = []
     for inst in instances.list_all():
         try:
-            out.append(_with_job(web.instance_payload(inst)))
+            summary = inst.status()
+            full = inst.id == detail_id or summary["running"]
+            out.append(_with_job(web.instance_payload(inst) if full else summary))
         except Exception as ex:  # noqa: BLE001 - un serveur abîmé ne doit pas cacher les autres
             out.append({"id": inst.id, "name": inst.id, "game": "?", "installed": False, "running": False,
                         "broken": str(ex), "job": None})
