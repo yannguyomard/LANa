@@ -211,7 +211,9 @@ class HomePage(QWidget):
             card.update_from(server, state_of(server, transient), game_names.get(server["game"], server["game"]))
         for sid in list(self.cards):
             if sid not in seen:
-                self.cards.pop(sid).deleteLater()
+                gone = self.cards.pop(sid)
+                gone.setParent(None)
+                gone.deleteLater()
         self.empty.setVisible(not servers)
         running = sum(1 for s in servers if s.get("running"))
         if servers:

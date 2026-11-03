@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QPlainTextEdit,
                                QVBoxLayout, QWidget)
 
 from . import core
+from .backups import BackupsTab
 from .home import copy_button, state_of
 from .settings import SettingsTab, display_value, summary_fields
 from .widgets import Pill, label, run_async, set_prop
@@ -53,6 +54,8 @@ class ServerPage(QWidget):
         self.settings = SettingsTab()
         self.settings.restart_requested.connect(lambda: self.action_requested.emit(self.server_id, "restart"))
         self.tabs.addTab(self.settings, "Réglages")
+        self.backups = BackupsTab()
+        self.tabs.addTab(self.backups, "Sauvegardes")
         self.log_tab = self._tab_log()
         self.tabs.currentChanged.connect(lambda *_: self._refresh_log())
         outer.addWidget(self.tabs, 1)
@@ -148,6 +151,7 @@ class ServerPage(QWidget):
         self.server = None
         self.summary_key = None
         self.settings.server = None
+        self.backups.key = None
         self.log.clear()
         self.tabs.setCurrentIndex(0)
 
@@ -206,6 +210,7 @@ class ServerPage(QWidget):
         self.folder.setText(server.get("save_path", "") if self.advanced else "")
         self._update_summary(server)
         self.settings.load(server, self.advanced)
+        self.backups.update_from(server, self.advanced, state in ("running", "starting", "stopping"))
 
     def _update_summary(self, server):
         rows = []
@@ -218,7 +223,9 @@ class ServerPage(QWidget):
             return
         self.summary_key = key
         while self.summary.count():
-            self.summary.takeAt(0).widget().deleteLater()
+            old = self.summary.takeAt(0).widget()
+            old.setParent(None)
+            old.deleteLater()
         if not rows:
             self.summary.addWidget(label("Disponibles une fois le serveur installé.", "muted"), 0, 0, 1, 2)
         for i, (name, value) in enumerate(rows):

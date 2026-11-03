@@ -133,5 +133,30 @@ def delete(instance_id):
     _installs.pop(instance_id, None)
 
 
+def backup(instance_id, label="manuelle"):
+    return Instance(instance_id).backup(label)
+
+
+def export_backup(instance_id, name, dest):
+    """Copie une archive (ou une sauvegarde faite à l'instant si name est vide) vers dest."""
+    inst = Instance(instance_id)
+    shutil.copyfile(inst.backup_path(name or inst.backup("export")), dest)
+
+
+def restore(instance_id, name):
+    Instance(instance_id).restore(name)
+
+
+def import_save(instance_id, path):
+    inst = Instance(instance_id)
+    if inst.running():
+        raise InstanceError("Arrêtez le serveur avant d'importer une sauvegarde")
+    return inst.import_save(path, os.path.basename(path))
+
+
+def backup_file(instance_id, name):
+    return Instance(instance_id).backup_path(name)
+
+
 def running_servers():
     return [{"id": i.id, "name": i.meta().get("name", i.id)} for i in instances.list_all() if i.running()]
