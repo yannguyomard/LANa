@@ -2,7 +2,7 @@
 import math
 
 from PySide6.QtCore import QObject, QPointF, QRunnable, Qt, QThreadPool, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QRadialGradient
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap, QRadialGradient
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
 
 from . import visuals
@@ -69,11 +69,44 @@ def app_icon():
 
 
 class Backdrop(QWidget):
-    """Fond de la fenêtre : bleu nuit, halos sarcelle dans les coins et réseau d'hexagones discret."""
+    """Fond de la fenêtre : bleu nuit, halos sarcelle dans les coins et réseau d'hexagones discret.
+
+    Le réseau d'hexagones (des centaines de polygones) est dessiné une seule fois dans une image à la taille de
+    l'écran, puis recopié : redessiné à chaque image d'un redimensionnement, il ralentissait tout l'affichage."""
+    HEX = 46.0
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._grid = None
+
+    def _grid_for(self, w, h):
+        if self._grid is None or self._grid.width() < w or self._grid.height() < h:
+            screen = self.screen().size() if self.screen() else self.size()
+            gw, gh = max(w, screen.width()), max(h, screen.height())
+            grid = QPixmap(gw, gh)
+            grid.fill(Qt.transparent)
+            p = QPainter(grid)
+            p.setRenderHint(QPainter.Antialiasing)
+            pen = QPen(QColor(60, 140, 150, 26))
+            pen.setWidthF(1.0)
+            p.setPen(pen)
+            size = self.HEX
+            dx, dy = size * 1.5, size * math.sqrt(3)
+            col, x = 0, -size
+            while x < gw + size:
+                y = -dy + (dy / 2 if col % 2 else 0)
+                while y < gh + dy:
+                    p.drawPolygon([QPointF(x + size * math.cos(math.radians(a)), y + size * math.sin(math.radians(a)))
+                                   for a in range(0, 360, 60)])
+                    y += dy
+                x += dx
+                col += 1
+            p.end()
+            self._grid = grid
+        return self._grid
 
     def paintEvent(self, _):
         p = QPainter(self)
-        p.setRenderHint(QPainter.Antialiasing)
         w, h = self.width(), self.height()
         p.fillRect(self.rect(), QColor(C["bg"]))
         for cx, cy, radius, color in ((0, h, max(w, h) * 0.55, QColor(26, 90, 90, 70)),
@@ -83,23 +116,7 @@ class Backdrop(QWidget):
             grad.setColorAt(0, color)
             grad.setColorAt(1, QColor(0, 0, 0, 0))
             p.fillRect(self.rect(), grad)
-        # Hexagones à plat, plus visibles vers les bords droits et bas
-        size = 46.0
-        dx, dy = size * 1.5, size * math.sqrt(3)
-        pen = QPen(QColor(60, 140, 150, 26))
-        pen.setWidthF(1.0)
-        p.setPen(pen)
-        col = 0
-        x = -size
-        while x < w + size:
-            y = -dy + (dy / 2 if col % 2 else 0)
-            while y < h + dy:
-                points = [QPointF(x + size * math.cos(math.radians(a)), y + size * math.sin(math.radians(a)))
-                          for a in range(0, 360, 60)]
-                p.drawPolygon(points)
-                y += dy
-            x += dx
-            col += 1
+        p.drawPixmap(0, 0, self._grid_for(w, h), 0, 0, w, h)
         # Fenêtre sans cadre système : fin liseré pour la détacher du bureau (inutile une fois agrandie)
         if not self.window().isMaximized():
             p.setPen(QPen(QColor(C["line"]), 1))

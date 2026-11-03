@@ -115,6 +115,7 @@ class MainWindow(QMainWindow):
         self.indicator = QFrame(bar)
         self.indicator.setObjectName("navindicator")
         self.indicator.setFixedSize(4, 30)
+        self.indicator_anim = motion.slider(self.indicator)
         self.indicator_key = None
         self.mode = label("", "caps")
         col.addWidget(self.mode)
@@ -141,8 +142,11 @@ class MainWindow(QMainWindow):
             return
         item = self.nav[key]
         target = QPoint(6, item.y() + (item.height() - self.indicator.height()) // 2)
-        if animate:
-            motion.slide(self.indicator, target)
+        self.indicator_anim.stop()
+        if animate and self.indicator.pos() != target:
+            self.indicator_anim.setStartValue(self.indicator.pos())
+            self.indicator_anim.setEndValue(target)
+            self.indicator_anim.start()
         else:
             self.indicator.move(target)
 

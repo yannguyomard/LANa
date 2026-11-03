@@ -1,18 +1,18 @@
 """Animations de l'appli : courbes d'atténuation réalistes, propriétés graphiques animées (opacité, position,
 halo), jamais de feuille de style recalculée en boucle.
 
-- fade_in / enter : apparition d'un élément ou d'une page (fondu + léger glissement, OutCubic) ;
+- fade_in / enter : apparition d'un élément ou d'une page en fondu (jamais de déplacement d'un widget
+  placé par un layout : il tremblerait) ;
 - HoverGlow : halo qui s'allume au survol des boutons principaux, des cartes et du menu (ombre portée animée) ;
-- slide : déplacement d'un widget (indicateur du menu, OutBack pour un léger effet d'aimant) ;
+- slider : déplacement d'un widget placé à la main (repère du menu, OutBack pour un léger effet d'aimant) ;
 - fade_window : apparition d'une fenêtre (opacité de la fenêtre) ;
 - Spinner, CheckMark : micro-animations dessinées (chargement, validation), à la place de Lottie qui n'existe
   qu'en QML et alourdirait l'appli de plusieurs centaines de Mo.
 """
 import math
 
-from PySide6.QtCore import (QAbstractAnimation, QEasingCurve, QEvent, QObject, QPoint, QPointF, QPropertyAnimation,
-                            QRectF, QSequentialAnimationGroup, QParallelAnimationGroup, QPauseAnimation, Qt,
-                            QVariantAnimation)
+from PySide6.QtCore import (QAbstractAnimation, QEasingCurve, QEvent, QObject, QPointF, QPropertyAnimation, QRectF,
+                            QSequentialAnimationGroup, QPauseAnimation, Qt, QVariantAnimation)
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QGraphicsDropShadowEffect, QGraphicsOpacityEffect, QPushButton, QWidget
 
@@ -23,9 +23,10 @@ def _curve(kind):
     return QEasingCurve(kind)
 
 
-def fade_in(widget, duration=NORMAL, delay=0, rise=8):
-    """Fait apparaître un widget : opacité 0 -> 1 et montée de quelques pixels. L'effet est retiré à la fin
-    (un QGraphicsEffect coûte au dessin et empêcherait le halo de survol)."""
+def fade_in(widget, duration=NORMAL, delay=0):
+    """Fait apparaître un widget en fondu (opacité 0 -> 1). Jamais de déplacement : le widget est placé par un
+    layout, qui le replace à chaque recalcul (redimensionnement, autre carte qui arrive) ; animer sa position
+    en même temps le fait trembler. L'effet est retiré à la fin (il coûte au dessin et bloquerait le halo)."""
     if widget.graphicsEffect() is not None and not isinstance(widget.graphicsEffect(), QGraphicsDropShadowEffect):
         return
     effect = QGraphicsOpacityEffect(widget)
@@ -36,22 +37,11 @@ def fade_in(widget, duration=NORMAL, delay=0, rise=8):
     fade.setStartValue(0.0)
     fade.setEndValue(1.0)
     fade.setEasingCurve(_curve(QEasingCurve.Type.OutCubic))
-    group = QParallelAnimationGroup(widget)
-    group.addAnimation(fade)
-    if rise:
-        # Le glissement se fait sur la position une fois la mise en page faite (sinon le layout l'écrase).
-        start = {}
-
-        def follow(value):
-            if "pos" not in start:
-                start["pos"] = widget.pos()
-            widget.move(start["pos"].x(), start["pos"].y() + round(rise * (1 - value)))
-        fade.valueChanged.connect(follow)
-    outer = group
+    outer = fade
     if delay:
         outer = QSequentialAnimationGroup(widget)
         outer.addAnimation(QPauseAnimation(delay, widget))
-        outer.addAnimation(group)
+        outer.addAnimation(fade)
 
     def done():
         if widget.graphicsEffect() is effect:
@@ -62,7 +52,8 @@ def fade_in(widget, duration=NORMAL, delay=0, rise=8):
 
 
 def enter(page):
-    """Changement de page : fondu et glissement depuis la droite (InOutCubic)."""
+    """Changement de page : fondu (InOutCubic). Pas de glissement : la page est placée par le QStackedWidget,
+    qui la repositionne à chaque redimensionnement."""
     effect = QGraphicsOpacityEffect(page)
     effect.setOpacity(0.0)
     page.setGraphicsEffect(effect)
@@ -71,26 +62,17 @@ def enter(page):
     fade.setStartValue(0.0)
     fade.setEndValue(1.0)
     fade.setEasingCurve(_curve(QEasingCurve.Type.InOutCubic))
-    slide = QPropertyAnimation(page, b"pos", page)
-    slide.setDuration(NORMAL + 40)
-    slide.setStartValue(QPoint(24, 0))
-    slide.setEndValue(QPoint(0, 0))
-    slide.setEasingCurve(_curve(QEasingCurve.Type.OutCubic))
-    group = QParallelAnimationGroup(page)
-    group.addAnimation(fade)
-    group.addAnimation(slide)
-    group.finished.connect(lambda: page.graphicsEffect() is effect and page.setGraphicsEffect(None))
-    group.start(QAbstractAnimation.DeleteWhenStopped)
+    fade.finished.connect(lambda: page.graphicsEffect() is effect and page.setGraphicsEffect(None))
+    fade.start(QAbstractAnimation.DeleteWhenStopped)
 
 
-def slide(widget, target, duration=SLOW):
-    """Déplace un widget vers target (QPoint) avec un léger dépassement (OutBack, effet « aimant »)."""
+def slider(widget, duration=SLOW):
+    """Animation de position réutilisable pour un widget placé à la main (pas par un layout), avec un léger
+    dépassement (OutBack, effet « aimant »). Une seule par widget : on l'arrête avant de le replacer, sinon
+    l'animation et le placement direct se disputent la position (tremblement)."""
     anim = QPropertyAnimation(widget, b"pos", widget)
     anim.setDuration(duration)
-    anim.setStartValue(widget.pos())
-    anim.setEndValue(target)
     anim.setEasingCurve(_curve(QEasingCurve.Type.OutBack))
-    anim.start(QAbstractAnimation.DeleteWhenStopped)
     return anim
 
 
