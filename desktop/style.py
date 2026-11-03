@@ -10,10 +10,17 @@ C = {
     "ink": "#f0f0f0", "ink2": "#c7c7c7", "mut": "#9a9aa3", "faint": "#80808a",
     "acc": "#7c4dff", "acc2": "#d9ccff", "acc_hover": "#8f66ff", "ok": "#4ff0a6", "warn": "#ffb547", "bad": "#ff6b6b",
 }
-FONTS = {"display": "Segoe UI", "ui": "Segoe UI", "mono": "Consolas"}
+FONTS = {}
 
 
 def load_fonts():
+    """Polices du panneau si Qt sait lire le woff2 ; sinon celles du système (Segoe UI, San Francisco, DejaVu…)."""
+    ui = QFontDatabase.systemFont(QFontDatabase.GeneralFont).family()
+    # Police à chasse fixe du système (Courier New sous Windows) seulement si aucune plus lisible n'est installée.
+    installed = set(QFontDatabase.families())
+    mono = next((f for f in ("Consolas", "Menlo", "DejaVu Sans Mono", "Liberation Mono") if f in installed),
+                QFontDatabase.systemFont(QFontDatabase.FixedFont).family())
+    FONTS.update(display=ui, ui=ui, mono=mono)
     folder = os.path.join(core.ROOT, "web", "static", "fonts")
     for key, fname in (("display", "space-grotesk.woff2"), ("ui", "inter.woff2"), ("mono", "jetbrains-mono.woff2")):
         fid = QFontDatabase.addApplicationFont(os.path.join(folder, fname))
