@@ -9,7 +9,10 @@ import subprocess
 from . import paths, system
 
 # Outil nécessaire -> noms d'exécutables possibles
-TOOLS = {"wine": ["wine", "wine64"], "java": ["java"]}
+TOOLS = {"wine": ["wine", "wine64"], "java": ["java"],
+         "luanti": ["luantiserver", "luanti", "minetestserver", "minetest"], "proot-distro": ["proot-distro"]}
+# Applications macOS qui contiennent un outil (ex. Luanti installé par glisser-déposer ou Homebrew cask).
+MAC_APPS = {"luanti": ["/Applications/Luanti.app/Contents/MacOS/luanti", "/Applications/minetest.app/Contents/MacOS/minetest"]}
 
 
 def find_tool(name):
@@ -21,6 +24,10 @@ def find_tool(name):
         found = shutil.which(exe, path=search)
         if found:
             return found
+    if system.IS_MAC:
+        for path in MAC_APPS.get(name, []) + [os.path.expanduser("~" + p) for p in MAC_APPS.get(name, [])]:
+            if os.access(path, os.X_OK):
+                return path
     return None
 
 
@@ -80,7 +87,8 @@ def detect():
         "arch": platform.machine(),
         "os": system.os_label(),
         "lan_ip": system.lan_ip(),
-        "tools": {name: find_tool(name) for name in TOOLS if name != "wine" or not system.IS_WINDOWS},
+        "tools": {name: find_tool(name) for name in TOOLS if (name != "wine" or not system.IS_WINDOWS)
+                  and (name != "proot-distro" or system.IS_ANDROID)},
     }
 
 

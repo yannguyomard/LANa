@@ -130,7 +130,7 @@ class AllGameDefinitionsTests(unittest.TestCase):
                 for run in [game["run"]] + [game["run"][p] for p in ("linux", "windows") if p in game["run"]]:
                     for arg in run["command"]:
                         arg.format(**defaults)
-                    self.assertIn(run.get("runtime", game["run"]["runtime"]), ("wine", "java", "native"))
+                    self.assertIn(run.get("runtime", game["run"]["runtime"]), ("wine", "java", "native", "tool"))
                 self.assertIn(game["config"]["format"], ("json", "properties", "ue_options", "ini", "cfg", "xml_props", "xml_elements", "arma", "none"))
                 spec = game["install"]
                 self.assertIn(spec["type"], ("steamcmd", "mojang", "download", "upload"))
@@ -1423,6 +1423,67 @@ class ArmTests(unittest.TestCase):
             self.assertTrue(any("pkg install" in m for m in v["messages"]))
         finally:
             system.IS_ANDROID, machine.find_java = original_android, original_find
+
+
+class ArmServersTests(unittest.TestCase):
+    def setUp(self):
+        self.saved = {k: getattr(system, k) for k in ("IS_ARM", "IS_MAC", "IS_LINUX", "IS_ANDROID", "IS_WINDOWS", "X86_ONLY_BLOCKED")}
+
+    def tearDown(self):
+        for k, v in self.saved.items():
+            setattr(system, k, v)
+
+    def flags(self, **kw):
+        for k, v in kw.items():
+            setattr(system, k, v)
+
+    def test_download_keys(self):
+        tshock = {"run": {"runtime": "native", "command": ["x"]}}
+        self.flags(IS_MAC=False, IS_LINUX=True, IS_WINDOWS=False, IS_ARM=True)
+        self.assertEqual(games.download_keys(tshock), ["linux-arm64", "linux"])
+        self.flags(IS_MAC=True, IS_LINUX=False, IS_ARM=False)
+        self.assertEqual(games.download_keys(tshock), ["mac", "windows"])
+        self.assertEqual(games.download_keys({"run": {"runtime": "wine", "command": ["x"]}}), ["windows"])
+        self.assertEqual(runtime.dotnet_rid(mac=False, windows=False, machine_arch="aarch64"), "linux-arm64")
+        self.assertEqual(runtime.dotnet_rid(mac=True, windows=False, machine_arch="x86_64"), "osx-x64")
+
+    def test_arm_declared_games_stay_available(self):
+        self.flags(X86_ONLY_BLOCKED=True, IS_ANDROID=True)
+        self.assertIsNone(games.cpu_compat({"run": {"runtime": "native", "command": ["x"]}, "arm": "glibc"}))
+        self.assertTrue(games.uses_proot({"arm": "glibc"}))
+        self.assertFalse(games.uses_proot({"arm": "native"}))
+        self.assertIn("proot-distro", games.needs({"run": {"runtime": "native", "command": ["x"]}, "arm": "glibc"}))
+        self.assertEqual(games.needs({"run": {"runtime": "tool", "tool": "luanti", "command": []}, "arm": "native"}), ["luanti"])
+
+    def test_proot_command_keeps_paths(self):
+        self.patch_find = machine.find_tool
+        machine.find_tool = lambda name: "/usr/bin/" + name
+        try:
+            cmd = runtime.proot_command(["/srv/TShock.Server", "-world", "a b"], "/srv", {"DOTNET_ROOT": "/t/dotnet"})
+        finally:
+            machine.find_tool = self.patch_find
+        self.assertEqual(cmd[:4], ["/usr/bin/proot-distro", "login", "debian", "--bind"])
+        self.assertIn("DOTNET_ROOT=/t/dotnet", cmd)
+        self.assertEqual(cmd[-1], "cd /srv && exec /srv/TShock.Server -world 'a b'")
+
+    def test_console_start_resume(self):
+        run = {"console_start": {"always": ["config port {port}"], "resume": {"file": "s.msav", "then": "load lana", "else": "host {map}"}}}
+        folder = tempfile.mkdtemp(dir=_home)
+        self.assertEqual(runtime.console_start(run, folder, {"port": 6567, "map": "Fork"}), ["config port 6567,host Fork"])
+        open(os.path.join(folder, "s.msav"), "w").close()
+        self.assertEqual(runtime.console_start(run, folder, {"port": 6567, "map": "Fork"}), ["config port 6567,load lana"])
+
+    @unittest.skipIf(sys.platform.startswith("win"), "tube nommé POSIX")
+    def test_stop_command_through_console_pipe(self):
+        game = {"id": "c", "run": {"runtime": "native", "cwd": ".", "stop_command": ["save", "exit"],
+                "command": [sys.executable, "-c", "import sys\nfor l in sys.stdin:\n    print('recu', l.strip(), flush=True)\n    if l.strip() == 'exit': break"]}}
+        folder = tempfile.mkdtemp(dir=_home)
+        log = os.path.join(folder, "logs", "server.log")
+        proc = runtime.start_process(game, folder, folder, log)
+        self.assertTrue(runtime.send_console(log, game["run"]["stop_command"]))
+        proc.wait(timeout=10)
+        self.assertIn("recu save\nrecu exit", read(log))
+        self.assertFalse(runtime.send_console(os.path.join(folder, "nope", "x.log"), ["exit"]))
 
 
 if __name__ == "__main__":

@@ -511,7 +511,7 @@ async function home(){
       ["Machine",`${shortCpu(m.cpu)||m.arch} · ${m.ram_gb??"?"} Go de RAM`],
       ["Système",m.os||"—"],
       ["Disque",`${m.disk_free_gb} Go libres`],
-      ...Object.entries(m.tools).map(([k,p])=>[k,p?"installé":k==="java"?"téléchargé à la demande":"absent"]),
+      ...Object.entries(m.tools).filter(([k,p])=>p||k!=="luanti").map(([k,p])=>[k,p?"installé":k==="java"?"téléchargé à la demande":"absent"]),
       ["Réseau",m.lan_ip||"adresse locale inconnue"],
       ["Serveurs",!list.length?"aucun — choisissez un jeu ci-dessous":`${running} en marche sur ${list.length}`],
     ];
@@ -542,9 +542,19 @@ async function home(){
 
     // catalogue
     const cat=mk("section",{className:"block"},label(2,"Installer un jeu"));
-    const search=mk("input",{type:"search",placeholder:`Rechercher parmi ${g.length} jeux…`,style:"max-width:360px;margin-bottom:14px","aria-label":"Rechercher un jeu"});
+    // Par défaut, seulement les jeux que LANa peut faire tourner ici ; les autres restent consultables.
+    const unsupported=g.filter(x=>x.verdict.level==="bad").length;
+    let showAll=store.get("lana-all-games")==="1";
+    const search=mk("input",{type:"search",placeholder:`Rechercher parmi ${g.length-(showAll?0:unsupported)} jeux…`,style:"max-width:360px","aria-label":"Rechercher un jeu"});
     const grid=mk("div",{className:"games"});
-    search.oninput=()=>{const q=search.value.trim().toLowerCase();[...grid.children].forEach(c=>c.hidden=!!q&&!c.dataset.name.includes(q))};
+    const toggle=mk("button",{type:"button",className:"ghost caps",hidden:!unsupported});
+    const filter=()=>{const q=search.value.trim().toLowerCase();
+      [...grid.children].forEach(c=>c.hidden=(!showAll&&c.dataset.bad==="1")||(!!q&&!c.dataset.name.includes(q)));
+      toggle.textContent=showAll?(unsupported>1?"Masquer les jeux non pris en charge":"Masquer le jeu non pris en charge"):(unsupported>1?`Afficher les ${unsupported} jeux non pris en charge ici`:"Afficher le jeu non pris en charge ici");
+      toggle.setAttribute("aria-pressed",String(showAll));
+      search.placeholder=`Rechercher parmi ${g.length-(showAll?0:unsupported)} jeux…`};
+    search.oninput=filter;
+    toggle.onclick=()=>{showAll=!showAll;store.set("lana-all-games",showAll?"1":null);filter()};
     g.forEach((game,i)=>{
       const lvl=game.verdict.level;
       const b=btn("Installer","p",{disabled:lvl==="bad"||!!game.eula});
@@ -564,10 +574,10 @@ async function home(){
         mk("span",{},"J'ai lu et j'accepte le ",mk("a",{href:game.eula.url,target:"_blank",rel:"noopener",textContent:game.eula.label}))));
       if(game.install_type==="upload")card.append(mk("div",{className:"hint",textContent:"Installation par dépôt d'une archive des fichiers serveur (expliqué à l'étape suivante)."}));
       card.append(mk("div",{className:"foot"},...(pick?[pick]:[]),b));
-      card.dataset.name=game.name.toLowerCase()+" "+game.id;
+      card.dataset.name=game.name.toLowerCase()+" "+game.id;card.dataset.bad=lvl==="bad"?"1":"";
       card.style.setProperty("--g",gameColor(game.id));grid.append(card);
     });
-    cat.append(search,grid);v.append(cat);
+    cat.append(mk("div",{className:"row",style:"margin-bottom:14px;gap:12px;flex-wrap:wrap"},search,toggle),grid);filter();v.append(cat);
   },nav);
 }
 

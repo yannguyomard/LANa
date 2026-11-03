@@ -1,0 +1,152 @@
+{
+  "id": "mindustry",
+  "name": "Mindustry",
+  "install": {
+    "type": "download",
+    "archive": "file",
+    "source": {
+      "kind": "github",
+      "repo": "Anuken/Mindustry",
+      "assets": {
+        "windows": "server-release.jar",
+        "linux": "server-release.jar",
+        "mac": "server-release.jar"
+      }
+    },
+    "check_file": "server-release.jar",
+    "java_min": 17,
+    "make_dirs": [
+      "config/saves"
+    ]
+  },
+  "run": {
+    "runtime": "java",
+    "command": [
+      "-Xmx{memory_mb}M",
+      "-jar",
+      "server-release.jar"
+    ],
+    "cwd": ".",
+    "startup_seconds": 20,
+    "console_start": {
+      "always": [
+        "config port {port}",
+        "config name {name}",
+        "config autosave true"
+      ],
+      "resume": {
+        "file": "config/saves/lana.msav",
+        "then": "load lana",
+        "else": "host {map} {mode}"
+      }
+    },
+    "stop_command": [
+      "save lana",
+      "exit"
+    ],
+    "stop_wait": 30
+  },
+  "requirements": {
+    "ram_gb_min": 1,
+    "ram_gb_recommended": 2,
+    "disk_gb": 1
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "Jeu"
+    },
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu (UDP)"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "config/saves",
+  "config": {
+    "file": "",
+    "format": "none",
+    "initial": {}
+  },
+  "fields": [
+    {
+      "key": "lana:name",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 40,
+      "pattern": "^[^,]*$"
+    },
+    {
+      "key": "lana:map",
+      "label": "Carte d'une nouvelle partie",
+      "type": "enum",
+      "default": "Ancient_Caldera",
+      "group": "Partie",
+      "options": [
+        "Ancient_Caldera",
+        "Archipelago",
+        "Debris_Field",
+        "Domain",
+        "Fork",
+        "Fortress",
+        "Glacier",
+        "Islands",
+        "Labyrinth",
+        "Maze",
+        "Molten_Lake",
+        "Mud_Flats",
+        "Passage",
+        "Shattered",
+        "Tendrils",
+        "Triad",
+        "Veins",
+        "Wasteland"
+      ],
+      "hint": "Utilisée seulement tant qu'il n'y a pas de partie sauvegardée"
+    },
+    {
+      "key": "lana:mode",
+      "label": "Mode",
+      "type": "enum",
+      "default": "survival",
+      "group": "Partie",
+      "options": [
+        "survival",
+        "attack",
+        "pvp",
+        "sandbox"
+      ],
+      "labels": {
+        "survival": "Survie",
+        "attack": "Attaque",
+        "pvp": "Joueur contre joueur",
+        "sandbox": "Bac à sable"
+      }
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 6567,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535
+    },
+    {
+      "key": "lana:memory_mb",
+      "label": "Mémoire allouée à Java (Mo)",
+      "type": "int",
+      "default": 1024,
+      "group": "Performances",
+      "min": 512,
+      "max": 16384
+    }
+  ],
+  "untested": true
+}

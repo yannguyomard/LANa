@@ -1,0 +1,134 @@
+{
+  "id": "luanti",
+  "name": "Luanti (ex-Minetest)",
+  "install": {
+    "type": "download",
+    "source": {
+      "kind": "github_tag",
+      "repo": "luanti-org/minetest_game"
+    },
+    "strip": true,
+    "dest": "games/minetest",
+    "check_file": "games/minetest/game.conf",
+    "make_dirs": [
+      "worlds"
+    ]
+  },
+  "run": {
+    "runtime": "tool",
+    "tool": "luanti",
+    "command": [
+      "--server",
+      "--gameid",
+      "minetest",
+      "--world",
+      "worlds/{world}",
+      "--config",
+      "luanti.conf"
+    ],
+    "env": {
+      "LUANTI_GAME_PATH": "{server_dir}/games",
+      "MINETEST_GAME_PATH": "{server_dir}/games"
+    },
+    "cwd": ".",
+    "startup_seconds": 10
+  },
+  "arm": "native",
+  "tool_help": {
+    "android": "Dans Termux : « pkg install x11-repo » puis « pkg install luanti ».",
+    "mac": "Installez Luanti depuis luanti.org (application à glisser dans Applications), ou « brew install --cask luanti ».",
+    "linux": "Installez le serveur de votre distribution : « sudo apt install luanti-server » (ou minetest-server).",
+    "windows": "Téléchargez Luanti sur luanti.org et ajoutez son dossier bin au PATH."
+  },
+  "requirements": {
+    "ram_gb_min": 0.5,
+    "ram_gb_recommended": 1,
+    "disk_gb": 1,
+    "note": "Le moteur Luanti s'installe avec le gestionnaire de paquets ; LANa télécharge le jeu de base Minetest Game."
+  },
+  "ports": [
+    {
+      "from": "port",
+      "offset": 0,
+      "proto": "udp",
+      "label": "Jeu"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "worlds",
+  "config": {
+    "file": "luanti.conf",
+    "format": "properties",
+    "initial": {
+      "server_name": "Un serveur LANa",
+      "port": 30000,
+      "max_users": 10,
+      "server_announce": false,
+      "default_password": "",
+      "creative_mode": false,
+      "enable_damage": true
+    }
+  },
+  "fields": [
+    {
+      "key": "server_name",
+      "label": "Nom du serveur",
+      "type": "text",
+      "default": "Un serveur LANa",
+      "group": "Serveur",
+      "maxlen": 60
+    },
+    {
+      "key": "max_users",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 10,
+      "group": "Serveur",
+      "min": 1,
+      "max": 100
+    },
+    {
+      "key": "default_password",
+      "label": "Mot de passe des nouveaux joueurs",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "maxlen": 64,
+      "hint": "Vide = chacun choisit le sien à la première connexion",
+      "required": false
+    },
+    {
+      "key": "creative_mode",
+      "label": "Mode créatif",
+      "type": "bool",
+      "default": false,
+      "group": "Partie"
+    },
+    {
+      "key": "enable_damage",
+      "label": "Dégâts et mort",
+      "type": "bool",
+      "default": true,
+      "group": "Partie"
+    },
+    {
+      "key": "lana:world",
+      "label": "Nom du monde",
+      "type": "text",
+      "default": "lana",
+      "group": "Partie",
+      "maxlen": 40,
+      "pattern": "^[A-Za-z0-9_\\-]+$"
+    },
+    {
+      "key": "port",
+      "label": "Port",
+      "type": "int",
+      "default": 30000,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535
+    }
+  ],
+  "untested": true
+}

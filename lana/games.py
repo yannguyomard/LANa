@@ -61,20 +61,41 @@ def platform(game):
     return "linux" if system.IS_LINUX and run_spec(game)["runtime"] != "wine" else "windows"
 
 
+def download_keys(game):
+    """Clés à essayer, dans l'ordre, pour choisir le fichier à télécharger (`source.urls` ou `source.assets`) :
+    variante ARM d'abord sur processeur ARM, version macOS pour un serveur natif sur Mac, puis la plateforme."""
+    plat = platform(game)
+    native_mac = system.IS_MAC and run_spec(game)["runtime"] != "wine"
+    base = "mac" if native_mac else plat
+    keys = [base + "-arm64"] if system.IS_ARM and base != "windows" else []
+    return keys + [base] + ([plat] if base != plat else [])
+
+
 def cpu_compat(game):
     """Incompatibilité due au processeur (serveur x86 sur Linux ARM), au format de `compat`, ou None.
 
-    Seuls les serveurs Java tournent tels quels sur un téléphone ou un Raspberry Pi.
+    Sur un téléphone ou un Raspberry Pi tournent les serveurs Java et ceux qui déclarent `arm` :
+    "native" (programme de la machine, ex. paquet Termux) ou "glibc" (binaire Linux ARM64 ; sous Android,
+    il tourne dans un Debian installé par proot-distro).
     """
-    if system.X86_ONLY_BLOCKED and run_spec(game).get("runtime") != "java":
+    if system.X86_ONLY_BLOCKED and run_spec(game).get("runtime") != "java" and not game.get("arm"):
         return {"level": "bad", "note": "Serveur prévu pour les processeurs x86 (PC, Mac Intel) : il ne se lance pas sur ce "
-                                        "processeur ARM. Sur téléphone, seuls les serveurs Java (Minecraft) sont proposés."}
+                                        "processeur ARM (téléphone, Raspberry Pi)."}
     return None
+
+
+def uses_proot(game):
+    """Sous Android, un binaire Linux glibc ne tourne que dans un Debian proot-distro."""
+    return system.IS_ANDROID and game.get("arm") == "glibc"
 
 
 def needs(game):
     """Outils externes requis par le jeu (wine, java…)."""
-    runtime = run_spec(game).get("runtime")
+    run = run_spec(game)
+    runtime = run.get("runtime")
     if runtime == "java" or system.uses_wine(runtime):
         return [runtime]
-    return []
+    out = [run["tool"]] if runtime == "tool" else []
+    if uses_proot(game):
+        out.append("proot-distro")
+    return out

@@ -1,0 +1,161 @@
+{
+  "id": "terraria",
+  "name": "Terraria (TShock)",
+  "install": {
+    "type": "download",
+    "source": {
+      "kind": "github",
+      "repo": "Pryaxis/TShock",
+      "assets": {
+        "windows": "win-x64-Release.zip",
+        "linux": "linux-x64-Release.zip",
+        "linux-arm64": "linux-arm64-Release.zip",
+        "mac": "osx-x64-Release.zip"
+      }
+    },
+    "check_file": "ServerPlugins/TShockAPI.dll",
+    "executable": [
+      "TShock.Server"
+    ],
+    "make_dirs": [
+      "worlds"
+    ],
+    "keep": [
+      "tshock/config.json",
+      "tshock/sscconfig.json",
+      "tshock/motd.txt",
+      "tshock/rules.txt",
+      "tshock/whitelist.txt"
+    ]
+  },
+  "run": {
+    "runtime": "native",
+    "command": [
+      "./TShock.Server",
+      "-port",
+      "{port}",
+      "-maxplayers",
+      "{max_players}",
+      "-world",
+      "worlds/{world}.wld",
+      "-autocreate",
+      "{size}",
+      "-worldname",
+      "{world}",
+      "-password",
+      "{password}"
+    ],
+    "cwd": ".",
+    "startup_seconds": 40,
+    "stop_command": [
+      "exit"
+    ],
+    "stop_wait": 60,
+    "windows": {
+      "command": [
+        "TShock.Server.exe",
+        "-port",
+        "{port}",
+        "-maxplayers",
+        "{max_players}",
+        "-world",
+        "worlds/{world}.wld",
+        "-autocreate",
+        "{size}",
+        "-worldname",
+        "{world}",
+        "-password",
+        "{password}"
+      ]
+    },
+    "env": {
+      "DOTNET_DefaultStackSize": "1000000"
+    }
+  },
+  "dotnet": "9.0",
+  "arm": "glibc",
+  "debian_packages": [
+    "libicu-dev",
+    "ca-certificates"
+  ],
+  "requirements": {
+    "ram_gb_min": 1,
+    "ram_gb_recommended": 2,
+    "disk_gb": 1,
+    "note": "Serveur Terraria avec TShock (plugins, comptes, protections). Le runtime .NET 9 de Microsoft est installé automatiquement dans ~/LANa/tools."
+  },
+  "ports": [
+    {
+      "from": "lana:port",
+      "offset": 0,
+      "proto": "tcp",
+      "label": "Jeu"
+    }
+  ],
+  "connect": "{lan_ip}:{port}",
+  "savegame": "worlds",
+  "config": {
+    "file": "",
+    "format": "none",
+    "initial": {}
+  },
+  "fields": [
+    {
+      "key": "lana:world",
+      "label": "Nom du monde",
+      "type": "text",
+      "default": "lana",
+      "group": "Monde",
+      "maxlen": 40,
+      "pattern": "^[A-Za-z0-9_\\-]+$"
+    },
+    {
+      "key": "lana:size",
+      "label": "Taille d'un nouveau monde",
+      "type": "enum",
+      "default": "2",
+      "group": "Monde",
+      "options": [
+        "1",
+        "2",
+        "3"
+      ],
+      "labels": {
+        "1": "Petit",
+        "2": "Moyen",
+        "3": "Grand"
+      },
+      "hint": "Utilisée seulement si le monde n'existe pas encore"
+    },
+    {
+      "key": "lana:max_players",
+      "label": "Joueurs maximum",
+      "type": "int",
+      "default": 8,
+      "group": "Serveur",
+      "min": 1,
+      "max": 255
+    },
+    {
+      "key": "lana:password",
+      "label": "Mot de passe",
+      "type": "text",
+      "default": "",
+      "group": "Serveur",
+      "maxlen": 64,
+      "pattern": "^\\S*$",
+      "hint": "Vide = pas de mot de passe. Au premier démarrage, le journal affiche un code /setup pour devenir administrateur en jeu.",
+      "required": false
+    },
+    {
+      "key": "lana:port",
+      "label": "Port",
+      "type": "int",
+      "default": 7777,
+      "group": "Réseau",
+      "min": 1024,
+      "max": 65535
+    }
+  ],
+  "untested": true
+}

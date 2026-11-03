@@ -61,6 +61,11 @@ def games_payload():
                     "versions": versions.kind(game),
                     "verdict": machine.verdict(game["requirements"], games.needs(game), mach,
                                                games.cpu_compat(game) or game.get("compat"))})
+    for item in out:   # comment installer l'outil qui manque (ex. Luanti), pour ce système
+        how = games.get(item["id"]).get("tool_help", {})
+        hint = how.get("android" if system.IS_ANDROID else "mac" if system.IS_MAC else "windows" if system.IS_WINDOWS else "linux")
+        if hint and item["verdict"]["missing"]:
+            item["verdict"]["messages"].append(hint)
     if system.X86_ONLY_BLOCKED:   # téléphone, Raspberry Pi : les jeux installables d'abord
         out.sort(key=lambda g: g["verdict"]["level"] == "bad")
     return out

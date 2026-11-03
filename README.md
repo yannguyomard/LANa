@@ -1,6 +1,6 @@
 # LANa
 
-Installer et administrer des serveurs de jeu (25 jeux) depuis un panneau web, pensé pour de vieux Mac Intel, et fonctionnel sous macOS, Linux et Windows.
+Installer et administrer des serveurs de jeu (28 jeux) depuis un panneau web, pensé pour de vieux Mac Intel, et fonctionnel sous macOS, Linux et Windows.
 Aucune dépendance Python à installer : la bibliothèque standard suffit (Python 3.9 ou plus récent).
 
 ## Lancer
@@ -28,7 +28,14 @@ LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d
 ## Android (Termux)
 
 LANa tourne aussi sur un téléphone ou une tablette Android, dans [Termux](https://termux.dev) (à installer depuis F-Droid ou GitHub ; la version du Play Store n'est plus à jour).
-Sur un processeur ARM, seuls les serveurs Java sont proposés : **Minecraft (Java)**, avec Fabric ou Paper et leurs mods. Les autres serveurs sont compilés pour les processeurs x86 et ne s'y lancent pas ; LANa les affiche en fin de liste, avec la raison.
+Sur un processeur ARM (téléphone, Raspberry Pi), LANa ne propose que les serveurs qui y tournent. Les autres, compilés pour les processeurs x86, sont masqués par défaut ; un bouton du catalogue les affiche, avec la raison.
+
+| Serveur | Sur Android | Ce qu'il faut dans Termux |
+|---|---|---|
+| Minecraft (Java), avec Fabric ou Paper | Java de Termux | `pkg install openjdk-21` |
+| Mindustry | Java de Termux | `pkg install openjdk-21` |
+| Luanti (ex-Minetest) | paquet Termux | `pkg install x11-repo` puis `pkg install luanti` |
+| Terraria (TShock) | binaire Linux ARM64, lancé dans un Debian | `pkg install proot-distro` ; LANa installe Debian (`proot-distro install debian`), `libicu` et le runtime .NET 9 au premier serveur |
 
 ```bash
 pkg install python openjdk-21 git        # openjdk-21 : Minecraft 1.20.5 et plus récent ; « pkg search openjdk » pour les autres
@@ -41,8 +48,9 @@ sh LANa/lancer-termux.sh --lan           # ou aussi depuis les autres appareils 
 - Dans les réglages Android, retirez Termux de l'optimisation de la batterie, sinon le serveur s'arrête quand l'écran s'éteint.
 - Coupez tout VPN et l'option qui combine Wi-Fi et données mobiles (« double canal » sur Oppo) : sinon les joueurs du réseau local ne reçoivent pas les réponses du serveur. Ce point a été constaté lors d'un essai de Sons of the Forest sous Winlator.
 - Java n'est pas téléchargé automatiquement sous Android : les JRE publiés pour Linux ne fonctionnent pas sur Android. Il vient de Termux (`pkg install openjdk-21`).
+- Les programmes Linux ARM habituels (glibc) ne se lancent pas directement sous Android ; LANa les fait tourner dans le Debian de proot-distro, avec le dossier de LANa visible au même chemin.
 
-État : **non testé sur un téléphone**. La détection d'Android et du processeur ARM est couverte par les tests unitaires.
+État : **non testé sur un téléphone**. Sur Mac Intel, Mindustry et Terraria (TShock) ont été installés, lancés, arrêtés et relancés par LANa ; la détection d'Android, du processeur ARM et la commande proot-distro sont couvertes par les tests unitaires.
 
 ## Jeux
 
@@ -53,6 +61,9 @@ sh LANa/lancer-termux.sh --lan           # ou aussi depuis les autres appareils 
 | V Rising | disponible (Wine) : installation, démarrage, réglages lus par le jeu, testés sur Mac Intel de 8 Go (environ 1,9 Go de RAM) |
 | Palworld | disponible (Wine), **installation et configuration vérifiées, démarrage non testé** : 8 Go de RAM est son minimum et cette machine héberge déjà un autre serveur |
 | Sons of the Forest | disponible (Wine) : fonctionne sur Mac Intel avec 4 joueurs (constaté). Un plantage en cours de partie a été observé une fois, sur une machine qui faisait aussi tourner un autre serveur |
+| Terraria (TShock) | disponible, aussi sur processeur ARM : installation, création du monde, arrêt avec sauvegarde (`exit`) et reprise vérifiés sur Mac Intel. La création d'un monde prend plusieurs minutes sur une petite machine. Runtime .NET 9 installé automatiquement |
+| Mindustry | disponible, aussi sur processeur ARM : installation, création de la partie, sauvegarde à l'arrêt et reprise vérifiées sur Mac Intel |
+| Luanti (ex-Minetest) | disponible, aussi sur processeur ARM ; le moteur s'installe avec le gestionnaire de paquets (Termux, apt, Homebrew), LANa télécharge le jeu Minetest Game. **Démarrage non testé** (moteur absent de la machine de test) |
 
 ### Jeux ajoutés, à tester
 
@@ -183,12 +194,13 @@ Un jeu est un fichier `games/<id>.json`, sans code Python. Il décrit :
 
 - `install` : comment l'installer, et `check_file` (fichier témoin d'une installation réussie) :
   - `steamcmd` avec `appid` (connexion anonyme), et au besoin `beta` (branche par défaut, remplacée par celle choisie dans l'interface) ou `mod` (jeux GoldSrc) ;
-  - `download` avec `source` : `url` (adresses par plateforme), `github` (dernière version d'un dépôt) ou `bedrock` ; options `strip`, `keep` (fichiers de l'utilisateur à ne pas écraser), `executable`, `extras`, `archive: "nsis"` (installeur Windows silencieux) ;
+  - `download` avec `source` : `url` (adresses par plateforme), `github` (dernière version d'un dépôt ; clés `windows`, `linux`, `linux-arm64`, `mac`), `github_tag` (archive du dernier tag) ou `bedrock` ; `archive: "file"` si le téléchargement est le serveur lui-même (ex. un `.jar`), `dest` pour l'extraire dans un sous-dossier ; options `strip`, `keep` (fichiers de l'utilisateur à ne pas écraser), `executable`, `extras`, `archive: "nsis"` (installeur Windows silencieux) ;
   - `upload` : l'utilisateur dépose l'archive des fichiers serveur (`help` explique où la trouver) ;
   - `mojang` pour Minecraft (Java) ;
   - `write_files` = fichiers à créer à côté de l'exécutable, `make_dirs` = dossiers à créer ;
 - `eula` : contrat de licence à faire accepter explicitement par l'utilisateur (`url`, `label`, fichier à écrire). LANa n'accepte jamais un contrat à sa place ;
-- `run` : le runtime (`wine`, `java` ou `native`), la commande, le dossier de lancement, `env` (variables d'environnement) et `stop_signal` (`TERM` par défaut) ;
+- `run` : le runtime (`wine`, `java`, `native`, ou `tool` avec `tool` = programme installé sur la machine, ex. `luanti`), la commande, le dossier de lancement, `env` (variables d'environnement, `{server_dir}` remplacé par le dossier du serveur) et `stop_signal` (`TERM` par défaut) ; `stop_command` = commandes écrites dans la console pour un arrêt propre (ex. `exit` pour Terraria), `console_start` = commandes de console passées au lancement (Mindustry) ;
+- `arm` : le serveur tourne aussi sur processeur ARM (`native` = programme de la machine ; `glibc` = binaire Linux ARM64, lancé sous Android dans un Debian proot-distro, avec `debian_packages`) ; `dotnet` = version du runtime .NET à installer (ex. `"9.0"`) ; `tool_help` = comment installer l'outil, par système ;
 - `requirements` : RAM minimale et recommandée, disque, note affichée à l'utilisateur ;
 - `ports`, `connect`, `savegame` (dossier sauvegardé) ;
 - `save_import` : formats de fichier propres au jeu acceptés à l'import (`extensions`, `magic` = premiers octets attendus, `target` = nom du fichier dans le dossier de sauvegarde) ;

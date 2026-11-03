@@ -12,6 +12,7 @@ import zipfile
 from . import config, games, jobs, machine, mods, paths, runtime, system, upnp, versions
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
+ANSI = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 KEEP_BACKUPS = 10
 LANA_PREFIX = "lana:"
 MAX_IMPORT_BYTES = 4 * 2**30   # taille maximale d'une sauvegarde importée, une fois décompressée
@@ -115,7 +116,9 @@ class Instance:
         # Java est téléchargé automatiquement si absent ; les autres outils doivent déjà être là.
         missing = [t for t in games.needs(game) if t != "java" and not machine.find_tool(t)]
         if missing:
-            raise InstanceError("Outil manquant : %s. Installez-le puis réessayez." % ", ".join(missing))
+            how = game.get("tool_help", {})
+            hint = how.get("android" if system.IS_ANDROID else "mac" if system.IS_MAC else "windows" if system.IS_WINDOWS else "linux", "")
+            raise InstanceError("Outil manquant : %s. %s" % (", ".join(missing), hint or "Installez-le puis réessayez."))
 
     def install(self, accept_eula=False, version=None):
         """Lance l'installation en arrière-plan ; retourne la tâche.
@@ -143,6 +146,10 @@ class Instance:
         def work(job):
             if system.uses_wine(games.run_spec(game)["runtime"]):
                 runtime.init_prefix(self.prefix, job)
+            if games.uses_proot(game):
+                runtime.ensure_debian(job, game.get("debian_packages", []))
+            if game.get("dotnet"):
+                runtime.ensure_dotnet(game["dotnet"], job)
             extra = {}
             if spec["type"] == "steamcmd":
                 runtime.steamcmd_install(game, self.server_dir, self.prefix, job, branch=version)
@@ -151,6 +158,9 @@ class Instance:
                 job.log("Serveur Minecraft %s installé." % extra["version"])
             elif spec["type"] == "download":
                 extra = runtime.download_install(game, self.server_dir, self.prefix, job, version=version)
+                if games.run_spec(game)["runtime"] == "java":   # serveur Java hors Mojang (ex. Mindustry)
+                    runtime.ensure_java(spec.get("java_min", 17), job)
+                    extra["java_min"] = spec.get("java_min", 17)
             else:
                 raise RuntimeError("Type d'installation non géré : %s" % spec["type"])
             self._finish_install(job.log, extra, accept_eula)
@@ -261,10 +271,16 @@ class Instance:
         with _lock(self.id):
             if not self.running():
                 raise InstanceError("Le serveur est déjà arrêté")
+            run = games.run_spec(self.game)
+            # Serveur qui sauvegarde sur commande (Terraria, Mindustry) : on la lui envoie, puis on archive le monde à jour.
+            if run.get("stop_command") and runtime.send_console(self.log_path, run["stop_command"]):
+                for _ in range(run.get("stop_wait", 60)):
+                    if not self.running():
+                        break
+                    time.sleep(1)
             if backup and os.path.isdir(os.path.join(self.server_dir, self.game["savegame"])):
                 self._backup_unlocked("avant-arret")
-            run = games.run_spec(self.game)
-            if not runtime.stop_group(self._pgid(), system.uses_wine(run["runtime"]), self.prefix,
+            if self.running() and not runtime.stop_group(self._pgid(), system.uses_wine(run["runtime"]), self.prefix,
                                       sig=runtime.stop_signal(run.get("stop_signal", "TERM"))):
                 raise InstanceError("Le serveur ne s'est pas arrêté")
         upnp.poke()
@@ -324,6 +340,7 @@ class Instance:
             fh.seek(0, os.SEEK_END)
             fh.seek(max(0, fh.tell() - 60000))
             text = fh.read().decode("utf-8", "replace")
+        text = ANSI.sub("", text)   # codes de couleur des consoles (Mindustry…)
         kept = [l for l in text.splitlines() if "[mvk-info]" not in l]
         return "\n".join(kept[-lines:])
 

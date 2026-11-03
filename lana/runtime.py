@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import platform
+import shlex
 import shutil
 import signal
 import subprocess
@@ -17,6 +18,8 @@ from . import games, machine, paths, system
 
 STEAMCMD_URL = "https://steamcdn-a.akamaihd.net/client/installer/steamcmd.zip"
 MOJANG_MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json"
+DOTNET_RELEASES = "https://builds.dotnet.microsoft.com/dotnet/release-metadata/%s/releases.json"
+PROOT_DISTRO = "debian"
 ADOPTIUM_JRE = "https://api.adoptium.net/v3/binary/latest/%d/ga/%s/%s/jre/hotspot/normal/eclipse"
 USER_AGENT = "LANa"
 
@@ -222,14 +225,19 @@ def resolve_download(game, version=None):
     """URL de l'archive du serveur pour cette plateforme, selon `install.source` (`version` : tag GitHub choisi)."""
     source = game["install"]["source"]
     plat = games.platform(game)
+    keys = games.download_keys(game)
+    pick = lambda table: next((table[k] for k in keys if table.get(k)), None)   # noqa: E731
     kind = source["kind"]
     if kind == "url":
-        url = source["urls"].get(plat)
+        url = pick(source["urls"])
     elif kind == "github":
         which = "tags/" + urllib.parse.quote(version) if version else "latest"
         release = fetch_json("https://api.github.com/repos/%s/releases/%s" % (source["repo"], which))
-        suffix = source["assets"].get(plat)
+        suffix = pick(source["assets"])
         url = next((a["browser_download_url"] for a in release.get("assets", []) if suffix and a["name"].endswith(suffix)), None)
+    elif kind == "github_tag":   # dépôt sans « release » publiée : archive du dernier tag (ex. le jeu de base de Luanti)
+        tags = fetch_json("https://api.github.com/repos/%s/tags?per_page=1" % source["repo"])
+        url = tags[0]["zipball_url"] if tags else None
     elif kind == "bedrock":   # Minecraft Bedrock : liens officiels de Mojang
         links = fetch_json("https://net-secondary.web.minecraft-services.net/api/v1.0/download/links")["result"]["links"]
         wanted = "serverBedrockLinux" if plat == "linux" else "serverBedrockWindows"
@@ -268,7 +276,9 @@ def download_install(game, server_dir, prefix, job, version=None):
     archive = os.path.join(work, name)
     try:
         download(url, archive, job, name)
-        if spec.get("archive") == "nsis":   # installeur Windows silencieux (/S), dossier imposé (/D=)
+        if spec.get("archive") == "file":   # le téléchargement est le serveur lui-même (ex. un .jar)
+            os.replace(archive, os.path.join(server_dir, spec["check_file"]))
+        elif spec.get("archive") == "nsis":   # installeur Windows silencieux (/S), dossier imposé (/D=)
             target = os.path.join(server_dir, spec.get("install_subdir", "app"))
             cmd = [archive, "/S", "/D=" + (target if system.IS_WINDOWS else windows_path(target))]
             if not system.IS_WINDOWS:
@@ -281,9 +291,15 @@ def download_install(game, server_dir, prefix, job, version=None):
             job.log("Extraction…")
             _safe_extract(archive, staging)
             top = os.listdir(staging)
+            if len(top) == 1 and top[0].endswith(".tar"):   # zip qui contient un .tar (ex. TShock, pour garder les droits)
+                inner = os.path.join(work, top[0])
+                os.replace(os.path.join(staging, top[0]), inner)
+                _safe_extract(inner, staging)
+                top = os.listdir(staging)
             if spec.get("strip") and len(top) == 1 and os.path.isdir(os.path.join(staging, top[0])):
                 staging = os.path.join(staging, top[0])
-            _merge_tree(staging, server_dir, set(spec.get("keep", [])))
+            dest = os.path.join(server_dir, spec["dest"]) if spec.get("dest") else server_dir
+            _merge_tree(staging, dest, set(spec.get("keep", [])))
         # Compléments (ex. configuration de base et ressources de MTA sous Linux), extraits dans un sous-dossier.
         for extra in spec.get("extras", []):
             url = extra["urls"].get(games.platform(game))
@@ -310,6 +326,114 @@ def download_install(game, server_dir, prefix, job, version=None):
     return {"source_url": url, "version": version} if version else {"source_url": url}
 
 
+def ensure_dotnet(channel, job):
+    """Dossier d'un runtime .NET `channel` (ex. "9.0") ; le télécharge depuis Microsoft dans ~/LANa/tools si besoin."""
+    folder = dotnet_root(channel)
+    if os.path.exists(os.path.join(folder, "dotnet.exe" if system.IS_WINDOWS else "dotnet")):
+        return folder
+    rid = dotnet_rid()
+    meta = fetch_json(DOTNET_RELEASES % channel)
+    want = "zip" if system.IS_WINDOWS else "tar.gz"
+    release = meta["releases"][0]
+    entry = next((f for f in release["runtime"]["files"] if f["rid"] == rid and f["name"].endswith(want)), None)
+    if not entry:
+        raise RuntimeError(".NET %s n'est pas publié pour cette machine (%s)." % (channel, rid))
+    job.log(".NET %s introuvable : installation du runtime de Microsoft (environ 30 Mo), sans toucher au système." % channel)
+    os.makedirs(folder, exist_ok=True)
+    archive = os.path.join(folder, "runtime." + want)
+    download(entry["url"], archive, job, ".NET %s (%s)" % (release["release-version"], rid))
+    digest = hashlib.sha512()
+    with open(archive, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 20), b""):
+            digest.update(chunk)
+    if entry.get("hash") and digest.hexdigest() != entry["hash"].lower():
+        os.remove(archive)
+        raise RuntimeError("Empreinte incorrecte pour .NET : téléchargement corrompu ou altéré.")
+    _safe_extract(archive, folder)
+    os.remove(archive)
+    return folder
+
+
+def dotnet_root(channel):
+    return os.path.join(paths.TOOLS_DIR, "dotnet", channel)
+
+
+def dotnet_rid(mac=None, windows=None, machine_arch=None):
+    """Identifiant .NET de la plateforme (osx-x64, linux-arm64…). Android : linux-arm64, lancé dans Debian (proot)."""
+    mac = system.IS_MAC if mac is None else mac
+    windows = system.IS_WINDOWS if windows is None else windows
+    arch = (machine_arch or platform.machine()).lower()
+    arch = "arm64" if arch in ("arm64", "aarch64") else "x64"
+    return "%s-%s" % ("osx" if mac else "win" if windows else "linux", arch)
+
+
+def proot_rootfs():
+    return os.path.join(os.environ.get("PREFIX", "/data/data/com.termux/files/usr"), "var", "lib", "proot-distro",
+                        "installed-rootfs", PROOT_DISTRO)
+
+
+def ensure_debian(job, packages=()):
+    """Android : installe une fois le Debian de proot-distro, et les paquets demandés (ex. libicu pour .NET)."""
+    tool = machine.find_tool("proot-distro")
+    if not tool:
+        raise RuntimeError("proot-distro manque : dans Termux, tapez « pkg install proot-distro », puis réessayez.")
+    if not os.path.isdir(proot_rootfs()):
+        job.log("Installation d'un Debian dans Termux (proot-distro, environ 100 Mo, une seule fois)…")
+        subprocess.run([tool, "install", PROOT_DISTRO], capture_output=True, timeout=1800)
+        if not os.path.isdir(proot_rootfs()):
+            raise RuntimeError("proot-distro n'a pas pu installer Debian.")
+    missing = [p for p in packages if not os.path.exists(os.path.join(proot_rootfs(), "var", "lib", "lana-" + p))]
+    if missing:
+        job.log("Paquets Debian : %s…" % ", ".join(missing))
+        script = "apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y %s && touch %s" % (
+            " ".join(shlex.quote(p) for p in missing), " ".join("/var/lib/lana-" + shlex.quote(p) for p in missing))
+        proc = subprocess.run([tool, "login", PROOT_DISTRO, "--", "sh", "-c", script], capture_output=True, text=True, timeout=1800)
+        if proc.returncode != 0:
+            raise RuntimeError("Installation des paquets Debian impossible : %s" % (proc.stderr or proc.stdout)[-300:])
+
+
+def proot_command(cmd, cwd, extra_env):
+    """Commande lancée dans le Debian de proot-distro, avec le dossier de LANa visible au même chemin."""
+    inner = "cd %s && exec %s" % (shlex.quote(cwd), " ".join(shlex.quote(c) for c in cmd))
+    return ([machine.find_tool("proot-distro"), "login", PROOT_DISTRO, "--bind", "%s:%s" % (paths.HOME, paths.HOME), "--",
+             "env"] + ["%s=%s" % kv for kv in sorted(extra_env.items())] + ["sh", "-c", inner])
+
+
+def console_start(run, server_dir, settings):
+    """Commandes de console passées au lancement (ex. Mindustry) : `console_start` = {"always": [...],
+    "resume": {"file", "then", "else"}}, réunies en un seul argument séparé par des virgules."""
+    spec = run.get("console_start")
+    if not spec:
+        return []
+    fill = lambda s: s.format(**settings)   # noqa: E731
+    lines = [fill(c) for c in spec.get("always", [])]
+    resume = spec.get("resume")
+    if resume:
+        lines.append(fill(resume["then"] if os.path.exists(os.path.join(server_dir, resume["file"])) else resume["else"]))
+    return [",".join(l.replace(",", " ") for l in lines)]
+
+
+def console_path(log_path):
+    """Tube nommé qui sert d'entrée au serveur : LANa y écrit les commandes d'arrêt, même après un redémarrage de LANa."""
+    return os.path.join(os.path.dirname(os.path.dirname(log_path)), "console.fifo")
+
+
+def send_console(log_path, lines):
+    """Écrit des commandes dans la console d'un serveur lancé avec un tube ; False si impossible."""
+    path = console_path(log_path)
+    if system.IS_WINDOWS or not os.path.exists(path):
+        return False
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_NONBLOCK)
+    except OSError:   # personne ne lit : le serveur n'a pas été lancé avec ce tube
+        return False
+    try:
+        os.write(fd, ("".join(l + "\n" for l in lines)).encode())
+    finally:
+        os.close(fd)
+    return True
+
+
 def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0, overrides=None):
     """Lance le serveur dans son propre groupe de processus ; retourne le Popen.
 
@@ -318,9 +442,12 @@ def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0,
     """
     run = games.run_spec(game)
     overrides = overrides or {}
-    cmd = [a.format(**(settings or {})) if "{" in a else a for a in run["command"]]
+    settings = settings or {}
+    cmd = [a.format(**settings) if "{" in a else a for a in run["command"]]
     cmd = [overrides.get("replace", {}).get(a, a) for a in cmd] + list(overrides.get("args", []))
+    cmd += console_start(run, server_dir, settings)
     env = dict(os.environ)
+    extra_env = dict(run.get("env", {}))
     cwd = os.path.join(server_dir, run.get("cwd", "."))
     if system.uses_wine(run["runtime"]):
         cmd = [machine.find_tool("wine")] + cmd
@@ -332,19 +459,40 @@ def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0,
         if not java:
             raise RuntimeError("Java %d ou plus récent est requis." % java_min)
         cmd = [java] + cmd
-    env.update(run.get("env", {}))
-    env.update(overrides.get("env", {}))
+    elif run["runtime"] == "tool":   # programme installé sur la machine (ex. Luanti par le gestionnaire de paquets)
+        tool = machine.find_tool(run["tool"])
+        if not tool:
+            raise RuntimeError("%s n'est pas installé." % run["tool"])
+        cmd = [tool] + cmd
+    elif run["runtime"] == "native" and os.path.exists(os.path.join(cwd, cmd[0])):
+        cmd[0] = os.path.normpath(os.path.join(cwd, cmd[0]))
+    extra_env = {k: v.replace("{server_dir}", server_dir) for k, v in extra_env.items()}
+    if game.get("dotnet"):
+        extra_env["DOTNET_ROOT"] = dotnet_root(game["dotnet"])
+    extra_env.update(overrides.get("env", {}))
+    env.update(extra_env)
+    if games.uses_proot(game):
+        cmd = proot_command(cmd, cwd, extra_env)
     os.makedirs(os.path.dirname(log_path), exist_ok=True)
     log = open(log_path, "ab")
     log.write(("\n===== Démarrage %s =====\n" % time.strftime("%Y-%m-%d %H:%M:%S")).encode())
     log.flush()
+    stdin = subprocess.DEVNULL
+    if run.get("stop_command") and not system.IS_WINDOWS:
+        # Entrée de la console : un tube nommé ouvert en lecture-écriture, pour qu'il ne se ferme jamais côté serveur.
+        fifo = console_path(log_path)
+        if os.path.exists(fifo):
+            os.remove(fifo)
+        os.mkfifo(fifo, 0o600)
+        stdin = os.open(fifo, os.O_RDWR)
     try:
         # Groupe de processus à part, pour pouvoir arrêter le serveur et ses enfants sans toucher à LANa.
         group = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if system.IS_WINDOWS else {"start_new_session": True}
-        return subprocess.Popen(cmd, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT,
-                                stdin=subprocess.DEVNULL, **group)
+        return subprocess.Popen(cmd, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT, stdin=stdin, **group)
     finally:
         log.close()  # le processus enfant garde sa propre copie du descripteur
+        if stdin is not subprocess.DEVNULL:
+            os.close(stdin)
 
 
 def _windows_pid_alive(pid):
