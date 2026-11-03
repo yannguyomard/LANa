@@ -21,7 +21,6 @@ class MainWindow(QMainWindow):
         self.advanced = self.settings.value("advanced", False, type=bool)
         self.transient = Transient()
         self.servers = []
-        self.game_names = {}
         self.loading = False
         self.closing_ok = False
 
@@ -53,7 +52,6 @@ class MainWindow(QMainWindow):
         self.page.set_advanced(self.advanced)
 
         core.start_services()
-        run_async(core.catalog, done=self._names_loaded)
         self.timer = QTimer(self, interval=2500, timeout=self.refresh)
         self.timer.start()
         self.refresh()
@@ -82,10 +80,6 @@ class MainWindow(QMainWindow):
 
     # ---------- données ----------
 
-    def _names_loaded(self, catalog):
-        self.game_names = {g["id"]: g["name"] for g in catalog}
-        self._render()
-
     def refresh(self):
         if self.loading:
             return
@@ -103,13 +97,13 @@ class MainWindow(QMainWindow):
         run_async(core.servers, done=done, failed=failed)
 
     def _render(self):
-        self.home.update_from(self.servers, self.transient, self.game_names)
+        self.home.update_from(self.servers, self.transient)
         if self.stack.currentWidget() is self.page:
             current = next((s for s in self.servers if s["id"] == self.page.server_id), None)
             if current is None:
                 self.stack.setCurrentWidget(self.home)
             else:
-                self.page.update_from(current, self.transient, self.game_names.get(current["game"], current["game"]))
+                self.page.update_from(current, self.transient)
 
     def _server(self, server_id):
         return next((s for s in self.servers if s["id"] == server_id), None)

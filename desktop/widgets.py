@@ -22,9 +22,16 @@ class _Task(QRunnable):
         try:
             result = self.fn(*self.args)
         except Exception as ex:  # noqa: BLE001 - toute erreur remonte à l'interface
-            self.signals.failed.emit(str(ex) or ex.__class__.__name__)
+            self._emit(self.signals.failed, str(ex) or ex.__class__.__name__)
         else:
-            self.signals.done.emit(result)
+            self._emit(self.signals.done, result)
+
+    @staticmethod
+    def _emit(signal, value):
+        try:
+            signal.emit(value)
+        except RuntimeError:   # appli fermée pendant la tâche : plus personne à prévenir
+            pass
 
 
 def run_async(fn, *args, done=None, failed=None):
@@ -96,6 +103,9 @@ class Pill(QLabel):
         self.setProperty("pill", self.KIND[state])
         self.style().unpolish(self)
         self.style().polish(self)
+        # Largeur d'après la police réellement appliquée par la feuille de style (padding 10 px de chaque côté,
+        # bordure, marge) : sinon le texte touche le bord avec certaines polices (Mac).
+        self.setMinimumWidth(self.fontMetrics().horizontalAdvance(self.text()) + 30)
 
 
 def set_prop(widget, name, value):

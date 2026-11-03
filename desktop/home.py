@@ -197,7 +197,7 @@ class HomePage(QWidget):
 
         self.cards = {}
 
-    def update_from(self, servers, transient, game_names):
+    def update_from(self, servers, transient):
         seen = set()
         for i, server in enumerate(servers):
             sid = server["id"]
@@ -208,7 +208,7 @@ class HomePage(QWidget):
                 card.open_requested.connect(self.open_requested)
                 card.action_requested.connect(self.action_requested)
                 self.list.insertWidget(i, card)
-            card.update_from(server, state_of(server, transient), game_names.get(server["game"], server["game"]))
+            card.update_from(server, state_of(server, transient), server.get("game_name", server["game"]))
         for sid in list(self.cards):
             if sid not in seen:
                 gone = self.cards.pop(sid)

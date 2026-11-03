@@ -167,10 +167,10 @@ class ServerPage(QWidget):
         if self.server:
             self.settings.load(self.server, advanced, force=True)
 
-    def update_from(self, server, transient, game_name):
+    def update_from(self, server, transient):
         self.server = server
         state = state_of(server, transient)
-        self.game.setText(game_name.upper())
+        self.game.setText(server.get("game_name", server["game"]).upper())
         self.name.setText(server.get("name", server["id"]))
         self.pill.set_state(state)
 

@@ -54,6 +54,10 @@ def server(instance_id):
 def _with_job(payload):
     job = _installs.get(payload["id"])
     payload["job"] = job.snapshot() if job else None
+    try:
+        payload["game_name"] = games.get(payload["game"])["name"]
+    except KeyError:   # jeu retiré de games/ : on garde son identifiant
+        payload["game_name"] = payload["game"]
     return payload
 
 
