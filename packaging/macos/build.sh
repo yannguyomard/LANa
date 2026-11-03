@@ -33,11 +33,17 @@ done
 mkdir -p "$APP/Contents/MacOS" "$RES"
 clang -O2 -arch x86_64 -arch arm64 -mmacosx-version-min=11.0 "$HERE/launcher.c" -o "$APP/Contents/MacOS/LANa"
 
-# 3. Icône
+# 3. Icône : le logo de l'appli (desktop/assets/logo.png) s'il existe, centré avec la marge des icônes macOS
 icons="$BUILD/AppIcon.iconset" && mkdir -p "$icons"
+src="$HERE/icon-1024.png"
+if [ -f "$ROOT/desktop/assets/logo.png" ]; then
+  src="$BUILD/icon-1024.png"
+  sips -Z 824 "$ROOT/desktop/assets/logo.png" --out "$BUILD/logo-824.png" >/dev/null
+  sips --padToHeightWidth 1024 1024 "$BUILD/logo-824.png" --out "$src" >/dev/null
+fi
 for s in 16 32 128 256 512; do
-  sips -z $s $s "$HERE/icon-1024.png" --out "$icons/icon_${s}x${s}.png" >/dev/null
-  d=$((s * 2)); sips -z $d $d "$HERE/icon-1024.png" --out "$icons/icon_${s}x${s}@2x.png" >/dev/null
+  sips -z $s $s "$src" --out "$icons/icon_${s}x${s}.png" >/dev/null
+  d=$((s * 2)); sips -z $d $d "$src" --out "$icons/icon_${s}x${s}@2x.png" >/dev/null
 done
 iconutil -c icns "$icons" -o "$RES/AppIcon.icns"
 
@@ -61,8 +67,8 @@ for arch in x86_64 aarch64; do   # pip ne sert plus une fois l'app construite
   rm -rf "$RES/python-$( [ $arch = aarch64 ] && echo arm64 || echo x86_64 )"/lib/python3.12/site-packages/pip*
 done
 P="$RES/site-packages/PySide6"
-# Seulement QtCore, QtGui, QtWidgets (et QtSvg, QtDBus dont ils dépendent), et les greffons utiles.
-find "$P" -maxdepth 1 -name 'Qt*.abi3.so' ! -name 'QtCore.*' ! -name 'QtGui.*' ! -name 'QtWidgets.*' -delete
+# Seulement QtCore, QtGui, QtWidgets, QtSvg (et QtDBus dont QtGui dépend), et les greffons utiles.
+find "$P" -maxdepth 1 -name 'Qt*.abi3.so' ! -name 'QtCore.*' ! -name 'QtGui.*' ! -name 'QtWidgets.*' ! -name 'QtSvg.*' -delete
 find "$P" -maxdepth 1 \( -name '*.pyi' -o -name '*.app' -o -name 'libpyside6qml*' \) -exec rm -rf {} +
 rm -rf "$P/include" "$P/typesystems" "$P/glue" "$P/scripts" "$P/Qt/qml" "$P/Qt/metatypes" "$P/Qt/libexec" \
        "$RES/site-packages/shiboken6/include" "$RES/site-packages"/*.dist-info/RECORD "$RES/site-packages/bin"
@@ -91,5 +97,5 @@ sed -e "s/@VERSION@/$VERSION/" -e "s/@MINOS@/13.0/" "$HERE/Info.plist" > "$APP/C
 codesign --force --deep --sign - "$APP"
 stage="$BUILD/dmg" && mkdir -p "$stage" && cp -R "$APP" "$stage/" && ln -s /Applications "$stage/Applications"
 hdiutil create -quiet -volname "LANa $VERSION" -srcfolder "$stage" -format UDZO -ov "$BUILD/LANa-$VERSION-macos.dmg"
-rm -rf "$stage" "$icons"
+rm -rf "$stage" "$icons" "$BUILD/logo-824.png" "$BUILD/icon-1024.png"
 du -sh "$APP" "$BUILD/LANa-$VERSION-macos.dmg"
