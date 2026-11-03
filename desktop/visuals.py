@@ -45,10 +45,14 @@ def icon(name, color, size=20):
 
 
 def logo_pixmap(size):
-    """Logo complet ; version simplifiée (manette + éclair) en dessous de 48 px, où la fusée devient illisible."""
+    """Logo de la planche d'identité de Yann (détouré, fond transparent, 400 px), réduit à la taille voulue."""
     key = ("logo", size)
     if key not in _cache:
-        _cache[key] = _render(_read(os.path.join(FOLDER, "logo.svg" if size >= 48 else "logo-mark.svg")), size)
+        ratio = _ratio()
+        pix = QPixmap(os.path.join(FOLDER, "logo.png")).scaled(
+            round(size * ratio), round(size * ratio), Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        pix.setDevicePixelRatio(ratio)
+        _cache[key] = pix
     return _cache[key]
 
 
