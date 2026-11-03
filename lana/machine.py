@@ -62,6 +62,13 @@ def java_candidates():
         for root in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
             if root:
                 found += sorted(glob.glob(os.path.join(root, "*", "*", "bin", "java.exe")))   # Adoptium, Java, Zulu…
+    elif system.IS_LINUX:
+        # Plusieurs Java installés côte à côte : la commande « java » ne désigne que l'un d'eux (souvent le plus ancien).
+        roots = [os.path.join(os.environ.get("PREFIX", "/data/data/com.termux/files/usr"), "lib", "jvm"),
+                 os.path.join(os.environ.get("PREFIX", "/data/data/com.termux/files/usr"), "opt")] if system.IS_ANDROID \
+            else ["/usr/lib/jvm", "/usr/java", "/opt"]
+        for root in roots:
+            found += sorted(glob.glob(os.path.join(root, "*", "bin", "java")))
     search = os.pathsep.join(paths.TOOL_DIRS + [os.environ.get("PATH", "")])
     on_path = shutil.which("java", path=search)
     return [p for p in found if os.path.exists(p)] + ([on_path] if on_path else [])

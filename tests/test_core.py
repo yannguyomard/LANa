@@ -1468,7 +1468,7 @@ class ArmServersTests(unittest.TestCase):
 
     def test_console_start_resume(self):
         run = {"console_start": {"always": ["config port {port}"], "resume": {"file": "s.msav", "then": "load lana", "else": "host {map}"}}}
-        folder = tempfile.mkdtemp(dir=_home)
+        folder = tempfile.mkdtemp(prefix="lana-console-")
         self.assertEqual(runtime.console_start(run, folder, {"port": 6567, "map": "Fork"}), ["config port 6567,host Fork"])
         open(os.path.join(folder, "s.msav"), "w").close()
         self.assertEqual(runtime.console_start(run, folder, {"port": 6567, "map": "Fork"}), ["config port 6567,load lana"])
@@ -1477,13 +1477,32 @@ class ArmServersTests(unittest.TestCase):
     def test_stop_command_through_console_pipe(self):
         game = {"id": "c", "run": {"runtime": "native", "cwd": ".", "stop_command": ["save", "exit"],
                 "command": [sys.executable, "-c", "import sys\nfor l in sys.stdin:\n    print('recu', l.strip(), flush=True)\n    if l.strip() == 'exit': break"]}}
-        folder = tempfile.mkdtemp(dir=_home)
+        folder = tempfile.mkdtemp(prefix="lana-fifo-")
         log = os.path.join(folder, "logs", "server.log")
         proc = runtime.start_process(game, folder, folder, log)
         self.assertTrue(runtime.send_console(log, game["run"]["stop_command"]))
         proc.wait(timeout=10)
         self.assertIn("recu save\nrecu exit", read(log))
         self.assertFalse(runtime.send_console(os.path.join(folder, "nope", "x.log"), ["exit"]))
+
+
+class JavaSearchTests(unittest.TestCase):
+    def test_termux_side_by_side_jdks_are_found(self):
+        prefix = tempfile.mkdtemp(prefix="lana-jdk-")   # _home peut déjà avoir été nettoyé par un autre test
+        for v in ("java-21-openjdk", "java-25-openjdk"):
+            write(os.path.join(prefix, "lib", "jvm", v, "bin", "java"), "#!/bin/sh\n")
+        saved = (system.IS_ANDROID, system.IS_LINUX, system.IS_WINDOWS, system.IS_MAC, os.environ.get("PREFIX"))
+        try:
+            system.IS_ANDROID, system.IS_LINUX, system.IS_WINDOWS, system.IS_MAC = True, True, False, False
+            os.environ["PREFIX"] = prefix
+            found = machine.java_candidates()
+        finally:
+            system.IS_ANDROID, system.IS_LINUX, system.IS_WINDOWS, system.IS_MAC = saved[:4]
+            if saved[4] is None:
+                os.environ.pop("PREFIX", None)
+            else:
+                os.environ["PREFIX"] = saved[4]
+        self.assertIn(os.path.join(prefix, "lib", "jvm", "java-25-openjdk", "bin", "java"), found)
 
 
 if __name__ == "__main__":
