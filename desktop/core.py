@@ -12,7 +12,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from lana import __version__, games, instances, jobs, paths, players, upnp, versions, web  # noqa: E402
+from lana import __version__, config, games, instances, jobs, paths, players, upnp, versions, web  # noqa: E402
 from lana.instances import Instance, InstanceError  # noqa: E402,F401
 
 VERSION = __version__
@@ -75,6 +75,15 @@ def version_options(game_id):
 
 def log_tail(instance_id, lines=400):
     return Instance(instance_id).log_tail(lines)
+
+
+def config_path(instance_id):
+    inst = Instance(instance_id)
+    return config._config_path(inst.game, inst.server_dir)
+
+
+def write_config(instance_id, values):
+    Instance(instance_id).write_config(values)
 
 
 def job(job_id):

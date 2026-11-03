@@ -56,7 +56,21 @@ QPushButton[size="big"] { padding: 10px 20px; font-size: 11pt; }
 QLineEdit, QPlainTextEdit, QComboBox, QListWidget, QSpinBox, QDoubleSpinBox {
     background: %(bg2)s; border: 1px solid %(line)s; border-radius: 6px; padding: 6px; selection-background-color: %(acc)s;
 }
-QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus { border-color: %(acc)s; }
+QLineEdit:focus, QComboBox:focus, QPlainTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus { border-color: %(acc)s; }
+QSpinBox, QDoubleSpinBox { padding-right: 26px; min-width: 90px; }
+QSpinBox::up-button, QDoubleSpinBox::up-button, QSpinBox::down-button, QDoubleSpinBox::down-button {
+    subcontrol-origin: border; width: 22px; background: %(surface2)s; border-left: 1px solid %(line)s;
+}
+QSpinBox::up-button, QDoubleSpinBox::up-button { subcontrol-position: top right; border-top-right-radius: 6px; }
+QSpinBox::down-button, QDoubleSpinBox::down-button { subcontrol-position: bottom right; border-bottom-right-radius: 6px; }
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover { background: %(line)s; }
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow { image: url(%(up)s); width: 9px; height: 6px; }
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow { image: url(%(down)s); width: 9px; height: 6px; }
+QComboBox { padding-right: 26px; min-width: 120px; }
+QComboBox::drop-down { subcontrol-origin: padding; subcontrol-position: center right; width: 24px; border: none; }
+QComboBox::down-arrow { image: url(%(down)s); width: 9px; height: 6px; }
+QComboBox QAbstractItemView { background: %(surface2)s; border: 1px solid %(line)s; selection-background-color: %(acc)s; padding: 4px; }
 QPlainTextEdit[role="log"] { font-family: "%(mono)s"; font-size: 9pt; color: %(ink2)s; }
 QListWidget { padding: 4px; outline: none; }
 QListWidget::item { padding: 8px; border-radius: 6px; }
@@ -66,6 +80,14 @@ QCheckBox { spacing: 8px; }
 QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid %(mut)s; border-radius: 4px; background: %(bg2)s; }
 QCheckBox::indicator:hover { border-color: %(acc2)s; }
 QCheckBox::indicator:checked { background: %(acc)s; border-color: %(acc)s; image: url(%(check)s); }
+
+QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
+QScrollBar::handle:vertical { background: %(line)s; border-radius: 4px; min-height: 30px; }
+QScrollBar::handle:vertical:hover { background: %(faint)s; }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 2px; }
+QScrollBar::handle:horizontal { background: %(line)s; border-radius: 4px; min-width: 30px; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 
 QTabWidget::pane { border: 1px solid %(line)s; border-radius: 8px; top: -1px; background: %(surface)s; }
 QTabBar::tab { background: transparent; color: %(mut)s; padding: 8px 16px; border-bottom: 2px solid transparent; }
@@ -79,7 +101,7 @@ QLabel[pill="stopped"] { color: %(mut)s; }
 QLabel[pill="running"] { color: %(ok)s; }
 QLabel[pill="busy"] { color: %(warn)s; }
 QLabel[pill="error"] { color: %(bad)s; }
-QLabel[pill] { background: %(bg2)s; border: 1px solid %(line)s; border-radius: 10px; padding: 2px 10px; font-size: 9pt; font-weight: 600; }
+QLabel[pill] { background: %(bg2)s; border: 1px solid %(line)s; border-radius: 11px; padding: 3px 10px; font-size: 9pt; font-weight: 600; min-height: 16px; }
 """
 
 
@@ -95,5 +117,7 @@ def apply(app):
         pal.setColor(role, QColor(C[key]))
     app.setPalette(pal)
     app.setFont(QFont(FONTS["ui"], 10))
-    check = os.path.join(os.path.dirname(os.path.abspath(__file__)), "check.svg").replace("\\", "/")
-    app.setStyleSheet(QSS % dict(C, check=check, **FONTS))
+    here = os.path.dirname(os.path.abspath(__file__))
+    icons = {name: os.path.join(here, fname).replace("\\", "/")
+             for name, fname in (("check", "check.svg"), ("up", "arrow-up.svg"), ("down", "arrow-down.svg"))}
+    app.setStyleSheet(QSS % dict(C, **icons, **FONTS))

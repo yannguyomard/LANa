@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QFrame, QGridLayout, QHBoxLayout, QPlainTextEdit,
 
 from . import core
 from .home import copy_button, state_of
+from .settings import SettingsTab, display_value, summary_fields
 from .widgets import Pill, label, run_async, set_prop
 
 
@@ -49,6 +50,9 @@ class ServerPage(QWidget):
 
         self.tabs = QTabWidget()
         self.tabs.addTab(self._tab_overview(), "Aperçu")
+        self.settings = SettingsTab()
+        self.settings.restart_requested.connect(lambda: self.action_requested.emit(self.server_id, "restart"))
+        self.tabs.addTab(self.settings, "Réglages")
         self.log_tab = self._tab_log()
         self.tabs.currentChanged.connect(lambda *_: self._refresh_log())
         outer.addWidget(self.tabs, 1)
@@ -83,6 +87,22 @@ class ServerPage(QWidget):
 
         self.hint = label("", "muted", wrap=True)
         lay.addWidget(self.hint)
+
+        lay.addSpacing(6)
+        head = QHBoxLayout()
+        head.addWidget(label("Réglages principaux", "caps"))
+        head.addStretch(1)
+        edit = set_prop(QPushButton("Modifier les réglages"), "kind", "flat")
+        edit.setCursor(Qt.PointingHandCursor)
+        edit.clicked.connect(lambda: self.tabs.setCurrentWidget(self.settings))
+        head.addWidget(edit)
+        lay.addLayout(head)
+        self.summary = QGridLayout()
+        self.summary.setHorizontalSpacing(18)
+        self.summary.setVerticalSpacing(6)
+        self.summary.setColumnStretch(1, 1)
+        lay.addLayout(self.summary)
+        self.summary_key = None
         lay.addStretch(1)
 
         line = QFrame()
@@ -126,6 +146,8 @@ class ServerPage(QWidget):
     def show_server(self, server_id):
         self.server_id = server_id
         self.server = None
+        self.summary_key = None
+        self.settings.server = None
         self.log.clear()
         self.tabs.setCurrentIndex(0)
 
@@ -138,6 +160,8 @@ class ServerPage(QWidget):
         elif not advanced and has:
             self.tabs.removeTab(self.tabs.indexOf(self.log_tab))
             self.log_timer.stop()
+        if self.server:
+            self.settings.load(self.server, advanced, force=True)
 
     def update_from(self, server, transient, game_name):
         self.server = server
@@ -180,6 +204,28 @@ class ServerPage(QWidget):
         else:
             self.hint.setText("")
         self.folder.setText(server.get("save_path", "") if self.advanced else "")
+        self._update_summary(server)
+        self.settings.load(server, self.advanced)
+
+    def _update_summary(self, server):
+        rows = []
+        if server.get("installed"):
+            values = server.get("values") or {}
+            rows = [(f["label"], display_value(f, values.get(f["key"], f.get("default"))))
+                    for f in summary_fields(server.get("fields", []))]
+        key = repr(rows)
+        if key == self.summary_key:
+            return
+        self.summary_key = key
+        while self.summary.count():
+            self.summary.takeAt(0).widget().deleteLater()
+        if not rows:
+            self.summary.addWidget(label("Disponibles une fois le serveur installé.", "muted"), 0, 0, 1, 2)
+        for i, (name, value) in enumerate(rows):
+            self.summary.addWidget(label(name, "muted"), i, 0)
+            shown = label(value)
+            shown.setTextInteractionFlags(Qt.TextSelectableByMouse)
+            self.summary.addWidget(shown, i, 1)
 
     def _button(self, text, action, kind):
         self.primary.setText(text)
