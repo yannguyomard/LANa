@@ -10,11 +10,12 @@ import threading
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, games, instances, jobs, machine, paths, players, system, upnp
+from . import __version__, games, instances, jobs, machine, paths, players, system, upnp, versions
 from .instances import Instance, InstanceError
 
 ROUTE_INSTANCE = re.compile(r"^/api/instances/([a-z0-9-]+)(?:/([a-z-]+))?$")
 ROUTE_JOB = re.compile(r"^/api/jobs/([0-9a-f]+)$")
+ROUTE_VERSIONS = re.compile(r"^/api/games/([a-z0-9_]+)/versions$")
 ROUTE_DOWNLOAD = re.compile(r"^/api/instances/([a-z0-9-]+)/backups/([A-Za-z0-9._-]+)$")
 # Fichiers de l'interface (polices…) : noms simples uniquement, sans « .. » possible, et types en liste blanche.
 ROUTE_STATIC = re.compile(r"^/static/((?:[a-z0-9_-]+/)*[a-z0-9_-]+(\.[a-z0-9]+))$")
@@ -56,6 +57,7 @@ def games_payload():
                     "eula": game.get("eula"), "install_type": spec["type"],
                     "install_help": spec.get("help", ""), "family": game.get("family", ""),
                     "untested": bool(game.get("untested")), "wine": "wine" in games.needs(game),
+                    "versions": versions.kind(game),
                     "verdict": machine.verdict(game["requirements"], games.needs(game), mach, game.get("compat"))})
     return out
 
@@ -69,6 +71,8 @@ def instance_payload(inst):
     spec = game["install"]
     out["install_type"] = spec["type"]
     out["install_help"] = spec.get("help", "")
+    out["versions"] = versions.kind(game)
+    out["version"] = inst.meta().get("version", "")
     tracking = game.get("players")
     out["players_tracking"] = {"verified": tracking.get("verified", False), "note": tracking.get("note", "")} if tracking else None
     if out["installed"]:
@@ -192,6 +196,14 @@ class Handler(BaseHTTPRequestHandler):
             if download:
                 inst = self.instance(download.group(1))
                 return self.send_file(inst.backup_path(download.group(2)))
+            wanted = ROUTE_VERSIONS.match(path)
+            if wanted:
+                try:
+                    return self.json({"ok": True, "versions": versions.available(games.get(wanted.group(1)))})
+                except KeyError as ex:
+                    return self.fail(str(ex), 404)
+                except versions.VersionError as ex:
+                    return self.fail(str(ex), 502)
             job = ROUTE_JOB.match(path)
             if job:
                 found = jobs.get(job.group(1))
@@ -279,7 +291,7 @@ class Handler(BaseHTTPRequestHandler):
             if game["install"]["type"] == "upload":   # l'installation se fera au dépôt de l'archive
                 return self.json({"ok": True, "id": inst.id, "job": None})
             try:
-                job = inst.install(accept_eula=body.get("accept_eula") is True)
+                job = inst.install(accept_eula=body.get("accept_eula") is True, version=body.get("version") or None)
             except InstanceError:
                 shutil.rmtree(inst.dir, ignore_errors=True)
                 raise
@@ -290,6 +302,9 @@ class Handler(BaseHTTPRequestHandler):
         inst, action = self.instance(match.group(1)), match.group(2)
         if action == "install":
             return self.json({"ok": True, "job": inst.install(accept_eula=body.get("accept_eula") is True).id})
+        if action == "version":
+            job = inst.change_version(body["version"], accept_eula=body.get("accept_eula") is True)
+            return self.json({"ok": True, "job": job.id})
         if action == "start":
             inst.start()
             return self.json({"ok": True, "message": "Démarrage lancé (environ %s secondes)" % games.run_spec(inst.game).get("startup_seconds", 30)})

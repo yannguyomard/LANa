@@ -9,7 +9,7 @@ import threading
 import time
 import zipfile
 
-from . import config, games, jobs, machine, paths, runtime, system, upnp
+from . import config, games, jobs, machine, paths, runtime, system, upnp, versions
 
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}$")
 KEEP_BACKUPS = 10
@@ -117,35 +117,54 @@ class Instance:
         if missing:
             raise InstanceError("Outil manquant : %s. Installez-le puis réessayez." % ", ".join(missing))
 
-    def install(self, accept_eula=False):
+    def install(self, accept_eula=False, version=None):
         """Lance l'installation en arrière-plan ; retourne la tâche.
 
         Si le jeu impose un contrat de licence (`eula`), l'utilisateur doit l'avoir accepté explicitement :
         LANa n'accepte jamais un contrat à sa place. Les jeux à fichiers fournis par l'utilisateur
         (`install.type == "upload"`) s'installent avec `install_upload`.
+        `version` : version choisie (voir versions.py) ; sinon celle déjà retenue pour ce serveur, ou la dernière.
         """
         game = self.game
         self._check_installable(accept_eula)
         spec = game["install"]
         if spec["type"] == "upload":
             raise InstanceError("Ce jeu s'installe en déposant l'archive de ses fichiers serveur : %s" % spec.get("help", ""))
+        if version:
+            try:
+                version = versions.check(game, version)
+            except versions.VersionError as ex:
+                raise InstanceError(str(ex))
+            # Retenue dès maintenant : « Réessayer » et les mises à jour reprennent la même version.
+            self._save_meta(dict(self.meta(), version=version))
+        else:
+            version = self.meta().get("version")
 
         def work(job):
             if system.uses_wine(games.run_spec(game)["runtime"]):
                 runtime.init_prefix(self.prefix, job)
             extra = {}
             if spec["type"] == "steamcmd":
-                runtime.steamcmd_install(game, self.server_dir, self.prefix, job)
+                runtime.steamcmd_install(game, self.server_dir, self.prefix, job, branch=version)
             elif spec["type"] == "mojang":
-                extra = runtime.mojang_install(game, self.server_dir, job)
+                extra = runtime.mojang_install(game, self.server_dir, job, version=version)
                 job.log("Serveur Minecraft %s installé." % extra["version"])
             elif spec["type"] == "download":
-                extra = runtime.download_install(game, self.server_dir, self.prefix, job)
+                extra = runtime.download_install(game, self.server_dir, self.prefix, job, version=version)
             else:
                 raise RuntimeError("Type d'installation non géré : %s" % spec["type"])
             self._finish_install(job.log, extra, accept_eula)
 
         return jobs.start("Installation de %s" % game["name"], work)
+
+    def change_version(self, version, accept_eula=False):
+        """Installe une autre version sur un serveur arrêté, après avoir archivé sa sauvegarde ; retourne la tâche."""
+        with _lock(self.id):
+            if self.running():
+                raise InstanceError("Arrêtez le serveur avant de changer de version")
+            if os.path.exists(self._save_path()):
+                self._backup_unlocked("avant-version")
+        return self.install(accept_eula=accept_eula, version=version)
 
     def _finish_install(self, log, extra, accept_eula):
         """Après la copie des fichiers du jeu : configuration initiale, fichiers attendus, contrat, état."""

@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _home = tempfile.mkdtemp(prefix="lana-test-")
 os.environ["LANA_HOME"] = _home
 
-from lana import config, games, instances, machine, players, runtime, system, upnp, web  # noqa: E402
+from lana import config, games, instances, jobs, machine, players, runtime, system, upnp, versions, web  # noqa: E402
 
 FAKE = {
     "id": "fake", "name": "Faux jeu",
@@ -1150,6 +1150,85 @@ class UpnpTests(unittest.TestCase):
             for port in game.get("ports", []):
                 self.assertIn(port["proto"], ("tcp", "udp"), game_id)
                 self.assertIn(port["from"], keys, game_id)
+
+
+class VersionTests(unittest.TestCase):
+    def test_minecraft_releases_only_down_to_first_server(self):
+        manifest = {"versions": [{"id": "1.21.9", "type": "release", "releaseTime": "2026-09-30T10:00:00+00:00"},
+                                 {"id": "25w40a", "type": "snapshot"}, {"id": "1.2.5", "type": "release"},
+                                 {"id": "1.2.4", "type": "release"}]}
+        found = versions.parse_minecraft(manifest)
+        self.assertEqual([v["id"] for v in found], ["1.21.9", "1.2.5"])
+        self.assertIsNotNone(found[0]["date"])
+
+    def test_steam_branches(self):
+        info = {"data": {"7": {"depots": {"branches": {
+            "alpha20.7": {"description": "Alpha 20.7 Stable", "timeupdated": "1681834192"},
+            "public": {"timeupdated": "1793638791"},
+            "secret": {"pwdrequired": "1", "timeupdated": "1793638792"},
+            "default_old": {"description": "\tPrevious stable", "timeupdated": "1790000000"},
+            "+quit": {"timeupdated": "1"}}}}}}
+        found = versions.parse_steam(info, 7)
+        self.assertEqual([v["id"] for v in found], ["public", "default_old", "alpha20.7"])   # publique d'abord, puis la plus récente
+        self.assertEqual(found[1]["label"], "default_old — Previous stable")
+
+    def test_github_releases(self):
+        found = versions.parse_github([{"tag_name": "v1.6", "prerelease": True}, {"tag_name": "v1.5", "draft": True},
+                                       {"tag_name": "v1.4", "published_at": "2025-01-02T03:04:05Z"}])
+        self.assertEqual([v["label"] for v in found], ["v1.6 (préversion)", "v1.4"])
+
+    def test_kind_and_check(self):
+        folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "games")
+        get = lambda name: json.load(open(os.path.join(folder, name + ".json"), encoding="utf-8"))
+        self.assertEqual(versions.kind(get("valheim")), "steam")
+        self.assertEqual(versions.kind(get("minecraft")), "minecraft")
+        self.assertEqual(versions.kind(get("openmp")), "github")
+        self.assertIsNone(versions.kind(get("minecraft_bedrock")))
+        self.assertIsNone(versions.kind(get("ragemp")))
+        for bad in ("+quit", "a b", "-beta", ""):
+            with self.assertRaises(versions.VersionError):
+                versions.check(get("valheim"), bad)
+
+    def test_github_tag_download_url(self):
+        game = {"id": "x", "run": {"runtime": "wine", "command": ["a"]},
+                "install": {"source": {"kind": "github", "repo": "o/r", "assets": {"windows": "win.zip"}}}}
+        seen, original = [], runtime.fetch_json
+        runtime.fetch_json = lambda url: seen.append(url) or {"assets": [{"name": "s-win.zip", "browser_download_url": "W"}]}
+        try:
+            runtime.resolve_download(game, "v1.4")
+            runtime.resolve_download(game)
+        finally:
+            runtime.fetch_json = original
+        self.assertEqual(seen, ["https://api.github.com/repos/o/r/releases/tags/v1.4", "https://api.github.com/repos/o/r/releases/latest"])
+
+    def test_install_keeps_chosen_branch(self):
+        games._cache["fakesteam"] = dict(FAKE, id="fakesteam", install={"type": "steamcmd", "appid": 1, "check_file": "x"})
+        branches, original = [], runtime.steamcmd_install
+        runtime.steamcmd_install = lambda game, d, p, job, branch=None: branches.append(branch)
+
+        def run(job):
+            while job.state == "running":
+                time.sleep(0.01)
+            self.assertEqual(job.state, "done", job.lines)
+        try:
+            inst = instances.Instance.create("fakesteam")
+            run(inst.install(version="alpha20.7"))
+            run(inst.install())   # « Réessayer », mise à jour : même branche
+            save = os.path.join(inst.server_dir, "save")
+            os.makedirs(save)
+            inst.start()
+            with self.assertRaises(instances.InstanceError):
+                inst.change_version("public")
+            inst.stop(backup=False)
+            run(inst.change_version("public"))
+            self.assertTrue(any("avant-version" in b["name"] for b in inst.backups()))
+            with self.assertRaises(instances.InstanceError):
+                inst.install(version="+quit")
+        finally:
+            runtime.steamcmd_install = original
+            del games._cache["fakesteam"]
+        self.assertEqual(branches, ["alpha20.7", "alpha20.7", "public"])
+        self.assertEqual(inst.meta()["version"], "public")
 
 
 if __name__ == "__main__":

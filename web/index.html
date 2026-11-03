@@ -206,6 +206,7 @@ a.back:hover{color:var(--ink)}
 .game .nm{font:600 18px/1.2 var(--font-display)}
 .game .req{color:var(--mut)}
 .game .foot{margin-top:auto;display:flex;align-items:center;gap:10px;padding-top:6px}
+.vers{flex:1;min-width:0}.vers select{width:100%}.foot .vers .hint{font-size:12px}
 .tagx{font-size:10.5px;border:1px solid var(--line);border-radius:999px;padding:2px 8px;color:var(--mut);cursor:help}
 .empty{border:1px dashed var(--line);border-radius:var(--radius);padding:22px;color:var(--mut);text-align:center}
 
@@ -463,6 +464,23 @@ const btn=(text,cls,props)=>mk("button",Object.assign({type:"button",className:"
 const label=(n,text,extra)=>mk("h2",{className:"lbl caps"},mk("span",{className:"n",textContent:String(n).padStart(2,"0")}),text,...(extra?[extra]:[]));
 const tip=text=>{const t=mk("span",{className:"tip",tabIndex:0,textContent:"i"});t.dataset.tip=text;t.setAttribute("role","note");t.setAttribute("aria-label",text);return t};
 const clock=d=>(d||new Date()).toTimeString().slice(0,8);
+// Choix d'une version (Minecraft, branche Steam, version GitHub), chargé à la demande : la liste vient d'Internet.
+const VERSION_WORD={steam:"branche",minecraft:"version",github:"version"};
+function versionPicker(gameId,kind,current){
+  const sel=mk("select",{"aria-label":"Version à installer"}),box=mk("div",{className:"vers"}),note=mk("div",{className:"hint"});
+  let first="";
+  const p={el:box,get:()=>sel.value,changed:()=>!!sel.value&&sel.value!==first,ok:false,async load(){
+    note.textContent="Recherche des versions disponibles…";box.replaceChildren(note);
+    const r=await api(`/api/games/${gameId}/versions`).catch(()=>({ok:false,message:"Erreur réseau"}));
+    if(!r.ok){note.textContent=r.message;return false}
+    if(r.versions.length<2){note.textContent="Une seule "+VERSION_WORD[kind]+" est publiée pour ce jeu.";return false}
+    first=r.versions[0].id;
+    const day=t=>t?" · "+new Date(t*1000).toLocaleDateString("fr-FR",{day:"numeric",month:"short",year:"numeric"}):"";
+    sel.replaceChildren(...r.versions.map((o,i)=>mk("option",{value:o.id,selected:current?o.id===current:i===0,
+      textContent:o.label+(i===0&&kind!=="steam"?" (la plus récente)":"")+(o.id===current?" — installée":"")+day(o.date)})));
+    box.replaceChildren(sel);p.ok=true;return true}};
+  return p;
+}
 const shortCpu=c=>(c||"").replace(/\((R|TM)\)/g,"").replace(/\s*CPU\s*@.*$/,"").replace(/\s+/g," ").trim();
 
 // ---------- accueil ----------
@@ -516,8 +534,10 @@ async function home(){
     g.forEach((game,i)=>{
       const lvl=game.verdict.level;
       const b=btn("Installer","p",{disabled:lvl==="bad"||!!game.eula});
+      const picker=game.versions?versionPicker(game.id,game.versions,""):null;
       b.onclick=()=>{if(lvl==="warn"&&!confirm(game.verdict.messages.join("\n")+"\n\nInstaller quand même ?"))return;
-        act([b],"/api/instances",{game:game.id,accept_eula:!!game.eula},r=>location.hash=r.job?"#/install/"+r.job+"/"+r.id:"#/s/"+r.id)};
+        act([b],"/api/instances",{game:game.id,accept_eula:!!game.eula,version:picker&&picker.changed()?picker.get():""},r=>location.hash=r.job?"#/install/"+r.job+"/"+r.id:"#/s/"+r.id)};
+      const pick=picker&&lvl!=="bad"?mk("button",{type:"button",className:"ghost caps",textContent:"Autre "+VERSION_WORD[game.versions]+"…",onclick:async()=>{pick.disabled=true;pick.replaceWith(picker.el);await picker.load()}}):null;
       const card=mk("div",{className:"game"},
         mk("div",{className:"row"},mk("span",{className:"dot "+(lvl==="ok"?"on":lvl==="warn"?"warn":"bad")}),mk("span",{className:"nm",textContent:game.name}),
           mk("span",{className:"grow"}),
@@ -529,7 +549,7 @@ async function home(){
         mk("input",{type:"checkbox",onchange:e=>b.disabled=lvl==="bad"||!e.target.checked}),
         mk("span",{},"J'ai lu et j'accepte le ",mk("a",{href:game.eula.url,target:"_blank",rel:"noopener",textContent:game.eula.label}))));
       if(game.install_type==="upload")card.append(mk("div",{className:"hint",textContent:"Installation par dépôt d'une archive des fichiers serveur (expliqué à l'étape suivante)."}));
-      card.append(mk("div",{className:"foot"},b));
+      card.append(mk("div",{className:"foot"},...(pick?[pick]:[]),b));
       card.dataset.name=game.name.toLowerCase()+" "+game.id;
       card.style.setProperty("--g",gameColor(game.id));grid.append(card);
     });
@@ -730,6 +750,23 @@ async function serverView(id){
   const bSaveR=btn("Enregistrer et redémarrer","",{onclick:()=>confirm("Enregistrer puis redémarrer ?")&&act([bSave,bSaveR],`/api/instances/${id}/config`,{values:collect(),restart:true},refresh)});
   settings.append(mk("div",{className:"row"},bSave,bSaveR));
 
+  // version : seulement pour les jeux qui en publient plusieurs (la liste dit s'il y en a vraiment plusieurs)
+  let vers=null,syncVer=()=>{};
+  if(s.versions){
+    const word=VERSION_WORD[s.versions],picker=versionPicker(s.game,s.versions,s.version);
+    const bVer=btn("Installer cette "+word,"",{disabled:true,onclick:()=>{
+      if(!confirm(`Installer « ${picker.get()} » ? La sauvegarde actuelle est d'abord archivée. Un monde ouvert dans une version plus récente peut ne pas se charger dans une plus ancienne.`))return;
+      if(!askEula(s.eula))return;
+      act([bVer],`/api/instances/${id}/version`,{version:picker.get(),accept_eula:!!s.eula},r=>location.hash="#/install/"+r.job+"/"+id)}});
+    syncVer=running=>{bVer.disabled=running||!picker.ok;bVer.title=running?"Arrêtez d'abord le serveur":""};
+    const bList=btn("Voir les "+word+"s disponibles","",{onclick:async()=>{bList.hidden=true;await picker.load();syncVer(s.running)}});
+    vers=mk("section",{className:"block"},label(n++,word==="branche"?"Branche Steam":"Version"),
+      mk("div",{className:"card"},mk("div",{className:"hint",style:"margin-bottom:12px",textContent:
+        (s.version?`Installée : ${s.version}. `:`Installée : la plus récente au moment de l'installation${s.versions==="steam"?" (branche publique)":""}. `)+
+        (s.versions==="steam"?"Les branches Steam donnent accès aux anciennes versions et aux versions de test publiées par l'éditeur.":"Vous pouvez installer une version précise, plus ancienne par exemple pour suivre celle des joueurs.")}),
+        mk("div",{className:"row"},picker.el,bList,bVer)));
+  }
+
   // sauvegardes
   const bk=mk("section",{className:"block"},label(n++,"Sauvegardes",tip(`Monde en cours :\n${s.save_path}\n\nArchives :\n${s.backup_dir}`)));const bkc=mk("div",{className:"card"});bk.append(bkc);
   const bBack=btn("Sauvegarder maintenant","",{onclick:()=>act([bBack],`/api/instances/${id}/backup`,{},()=>route())});
@@ -759,7 +796,7 @@ async function serverView(id){
   await swap(()=>{
     setTheme(s.game);mountScene();
     const v=$("#view");v.innerHTML="";
-    v.append(mk("a",{className:"back caps",href:"#/",textContent:"← Accueil"}),enter(head,0),enter(pc.card,1),settings,bk,logc,del);
+    v.append(mk("a",{className:"back caps",href:"#/",textContent:"← Accueil"}),enter(head,0),enter(pc.card,1),settings,...(vers?[vers]:[]),bk,logc,del);
   },nav);
   if(nav!==routing)return;
 
@@ -767,7 +804,7 @@ async function serverView(id){
     if(current!==id)return;
     const x=await api("/api/instances/"+id);
     dot.className="dot "+(x.running?"on live":"off");st.textContent=x.running?"En marche":"Arrêté";
-    bStart.disabled=x.running;bStop.disabled=!x.running;
+    bStart.disabled=x.running;bStop.disabled=!x.running;s.running=x.running;syncVer(x.running);
     if(x.upnp)showUpnp(x);
     if(s.players_tracking){const d=await api(`/api/instances/${id}/players`);if(current===id)pc.update(d.ok===false?null:d)}
     const atEnd=log.scrollTop+log.clientHeight>=log.scrollHeight-20;

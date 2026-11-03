@@ -101,6 +101,18 @@ C'est actif par défaut pour tous les serveurs, avec une case « UPnP » par ser
 
 Vérifié sur une box MiniUPnPd (IGD 2) : ouverture au démarrage, fermeture par la case, adresse Internet relevée.
 
+## Versions
+
+Quand un jeu publie plusieurs versions, on peut en choisir une : à l'installation (« Autre version… » sur la carte du jeu), ou plus tard depuis la page du serveur.
+
+- **Minecraft (Java)** : toutes les versions stables depuis la 1.2.5, d'après la liste officielle de Mojang.
+- **Jeux Steam** : les branches publiques de l'éditeur, par exemple les anciennes alphas de 7 Days to Die, `legacy41` de Project Zomboid ou les versions d'avant les grandes mises à jour de Valheim et V Rising. Les branches à mot de passe ne sont pas proposées. La liste vient d'[api.steamcmd.net](https://www.steamcmd.net), un miroir public des informations de SteamCMD ; le téléchargement, lui, passe toujours par SteamCMD. Revenir à « Dernière version » installe la branche `public`.
+- **open.mp** : les versions publiées sur GitHub.
+
+La section n'apparaît que pour ces jeux, et la liste dit s'il n'existe qu'une seule version (Sons of the Forest, Palworld, Enshrouded…).
+Un changement de version se fait serveur arrêté. La sauvegarde est d'abord archivée (`…-avant-version.tar.gz`), parce qu'un monde ouvert dans une version récente ne se charge pas toujours dans une plus ancienne.
+La version choisie reste celle du serveur : « Réessayer » ou une réinstallation reprennent la même.
+
 ## Systèmes
 
 | Système | État |
@@ -130,7 +142,7 @@ Pour tous les jeux, depuis la page d'un serveur :
 Un jeu est un fichier `games/<id>.json`, sans code Python. Il décrit :
 
 - `install` : comment l'installer, et `check_file` (fichier témoin d'une installation réussie) :
-  - `steamcmd` avec `appid` (connexion anonyme), et au besoin `beta` (branche) ou `mod` (jeux GoldSrc) ;
+  - `steamcmd` avec `appid` (connexion anonyme), et au besoin `beta` (branche par défaut, remplacée par celle choisie dans l'interface) ou `mod` (jeux GoldSrc) ;
   - `download` avec `source` : `url` (adresses par plateforme), `github` (dernière version d'un dépôt) ou `bedrock` ; options `strip`, `keep` (fichiers de l'utilisateur à ne pas écraser), `executable`, `extras`, `archive: "nsis"` (installeur Windows silencieux) ;
   - `upload` : l'utilisateur dépose l'archive des fichiers serveur (`help` explique où la trouver) ;
   - `mojang` pour Minecraft (Java) ;
@@ -162,7 +174,7 @@ python3 -m unittest discover -s tests
 
 ```
 run.py            lanceur (lancer.bat sous Windows)
-lana/             machine, games, config, runtime (Wine, SteamCMD, processus), system (différences macOS/Linux/Windows), instances, jobs, players, upnp, web
+lana/             machine, games, config, runtime (Wine, SteamCMD, processus), system (différences macOS/Linux/Windows), instances, jobs, players, upnp, versions, web
 games/            une définition JSON par jeu
 web/index.html    interface
 tests/            tests unitaires (aucun ne lance Wine)

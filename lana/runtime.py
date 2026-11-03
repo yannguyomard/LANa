@@ -9,6 +9,7 @@ import signal
 import subprocess
 import tarfile
 import time
+import urllib.parse
 import urllib.request
 import zipfile
 
@@ -164,19 +165,23 @@ def windows_path(path):
     return "Z:" + path.replace("/", "\\")
 
 
-def steamcmd_install(game, server_dir, prefix, job):
+def steamcmd_install(game, server_dir, prefix, job, branch=None):
     """Installe ou met à jour un serveur via SteamCMD (sous Wine hors Windows), avec une connexion anonyme.
 
     SteamCMD se met à jour lui-même au premier lancement puis s'arrête : on relance
     jusqu'à ce que les fichiers du jeu soient là.
-    Options de `install` : `beta` (branche), `mod` (jeux GoldSrc : +app_set_config <appid> mod <nom>).
+    `branch` : branche Steam choisie par l'utilisateur (« public » pour revenir à la version courante) ;
+    sinon celle de `install.beta`. Autre option : `mod` (jeux GoldSrc : +app_set_config <appid> mod <nom>).
     """
     spec = game["install"]
     exe = ensure_steamcmd(job)
     os.makedirs(server_dir, exist_ok=True)
     check = os.path.join(server_dir, spec["check_file"])
     appid = str(spec["appid"])
-    update = ["+app_update", appid] + (["-beta", spec["beta"]] if spec.get("beta") else []) + ["validate"]
+    branch = branch or spec.get("beta")
+    if branch:
+        job.log("Branche Steam : %s" % branch)
+    update = ["+app_update", appid] + (["-beta", branch] if branch else []) + ["validate"]
     for attempt in range(1, 4):
         job.log("SteamCMD, passage %d : téléchargement du serveur (plusieurs Go)…" % attempt)
         if system.IS_WINDOWS:
@@ -210,15 +215,16 @@ def steamcmd_install(game, server_dir, prefix, job):
 
 # ---------- téléchargements directs (hors Steam) ----------
 
-def resolve_download(game):
-    """URL de l'archive du serveur pour cette plateforme, selon `install.source`."""
+def resolve_download(game, version=None):
+    """URL de l'archive du serveur pour cette plateforme, selon `install.source` (`version` : tag GitHub choisi)."""
     source = game["install"]["source"]
     plat = games.platform(game)
     kind = source["kind"]
     if kind == "url":
         url = source["urls"].get(plat)
     elif kind == "github":
-        release = fetch_json("https://api.github.com/repos/%s/releases/latest" % source["repo"])
+        which = "tags/" + urllib.parse.quote(version) if version else "latest"
+        release = fetch_json("https://api.github.com/repos/%s/releases/%s" % (source["repo"], which))
         suffix = source["assets"].get(plat)
         url = next((a["browser_download_url"] for a in release.get("assets", []) if suffix and a["name"].endswith(suffix)), None)
     elif kind == "bedrock":   # Minecraft Bedrock : liens officiels de Mojang
@@ -246,10 +252,10 @@ def _merge_tree(src, dest, keep):
             os.replace(os.path.join(root, name), out)
 
 
-def download_install(game, server_dir, prefix, job):
+def download_install(game, server_dir, prefix, job, version=None):
     """Télécharge et extrait un serveur distribué hors Steam (zip, tar.gz, tar.xz, ou installeur NSIS)."""
     spec = game["install"]
-    url = resolve_download(game)
+    url = resolve_download(game, version)
     os.makedirs(server_dir, exist_ok=True)
     work = os.path.join(os.path.dirname(server_dir), "download")
     if os.path.isdir(work):
@@ -298,7 +304,7 @@ def download_install(game, server_dir, prefix, job):
             os.chmod(path, os.stat(path).st_mode | 0o755)
     if not os.path.exists(os.path.join(server_dir, spec["check_file"])):
         raise RuntimeError("Le téléchargement ne contient pas %s." % spec["check_file"])
-    return {"source_url": url}
+    return {"source_url": url, "version": version} if version else {"source_url": url}
 
 
 def start_process(game, server_dir, prefix, log_path, settings=None, java_min=0):
