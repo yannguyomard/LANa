@@ -105,18 +105,26 @@ def fade_window(window, duration=NORMAL):
 
 
 class HoverGlow(QObject):
-    """Filtre d'événements posé sur l'application : halo animé (ombre portée colorée) au survol des boutons
-    principaux, des boutons d'arrêt, des cartes et des entrées du menu. Un seul filtre pour toute l'appli."""
-    COLORS = {"primary": QColor(40, 200, 230), "stop": QColor(255, 93, 108), "card": QColor(42, 160, 150),
-              "navitem": QColor(80, 230, 190)}
+    """Filtre d'événements posé sur l'application : halo animé (ombre portée colorée) au survol de tous les
+    boutons, des cartes et des entrées du menu. Un seul filtre pour toute l'appli."""
+    # genre -> (couleur, rayon du flou en px, opacité maximale 0-255)
+    GLOWS = {"primary": (QColor(40, 200, 235), 34, 235), "stop": (QColor(255, 93, 108), 30, 225),
+             "button": (QColor(52, 190, 200), 26, 200), "flat": (QColor(40, 207, 252), 18, 210),
+             "winbtn": (QColor(120, 210, 230), 20, 170), "winbtn_close": (QColor(255, 70, 85), 24, 220),
+             "card": (QColor(42, 170, 160), 30, 150), "navitem": (QColor(80, 230, 190), 28, 210)}
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._running = {}   # widget -> animation de halo en cours
 
     def _kind(self, obj):
-        if isinstance(obj, QPushButton) and obj.property("kind") in ("primary", "stop"):
-            return obj.property("kind") if obj.isEnabled() else None
+        if isinstance(obj, QPushButton):
+            if not obj.isEnabled():
+                return None
+            if obj.objectName() in ("winbtn", "winbtn_close"):
+                return obj.objectName()
+            kind = obj.property("kind")
+            return kind if kind in ("primary", "stop", "flat") else "button"
         if isinstance(obj, QWidget) and obj.objectName() in ("card", "navitem"):
             return obj.objectName()
         return None
@@ -139,7 +147,7 @@ class HoverGlow(QObject):
             effect = QGraphicsDropShadowEffect(widget)
             effect.setOffset(0, 0)
             effect.setBlurRadius(0)
-            color = QColor(self.COLORS[kind])
+            color = QColor(self.GLOWS[kind][0])
             color.setAlpha(0)
             effect.setColor(color)
             widget.setGraphicsEffect(effect)
@@ -147,20 +155,20 @@ class HoverGlow(QObject):
         if previous is not None:
             previous.stop()
             previous.deleteLater()
-        start = effect.blurRadius() / 26.0
+        base, radius, alpha = self.GLOWS[kind]
+        start = min(1.0, effect.blurRadius() / radius)
         anim = QVariantAnimation(widget)
         anim.setDuration(FAST + 60 if on else FAST)
         anim.setStartValue(start)
         anim.setEndValue(1.0 if on else 0.0)
         anim.setEasingCurve(_curve(QEasingCurve.Type.OutQuad))
-        base = QColor(self.COLORS[kind])
 
         def step(value):
             if widget.graphicsEffect() is not effect:
                 return
-            effect.setBlurRadius(26.0 * value)
+            effect.setBlurRadius(radius * value)
             color = QColor(base)
-            color.setAlpha(round(150 * value))
+            color.setAlpha(round(alpha * value))
             effect.setColor(color)
 
         def finished():

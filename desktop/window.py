@@ -36,9 +36,6 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("LANa")
         self.resize(1100, 720)
         self.setMinimumSize(860, 560)
-        geometry = self.settings.value("geometry")
-        if geometry is not None:
-            self.restoreGeometry(geometry)
 
         central = Backdrop()
         central.setObjectName("backdrop")
@@ -65,6 +62,9 @@ class MainWindow(QMainWindow):
         lay.addWidget(right, 1)
         self.setCentralWidget(central)
         self.grips = Grips(self)
+        geometry = self.settings.value("geometry")
+        if geometry is not None:
+            self.restoreGeometry(geometry)   # après la construction : peut agrandir la fenêtre
 
         self.dashboard.new_requested.connect(self.new_server)
         self.dashboard.games_requested.connect(lambda: self.go("games"))
@@ -152,12 +152,13 @@ class MainWindow(QMainWindow):
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        self.grips.place()
-        self._place_indicator(animate=False)
+        if hasattr(self, "grips"):   # restoreGeometry() redimensionne avant que tout soit construit
+            self.grips.place()
+            self._place_indicator(animate=False)
 
     def changeEvent(self, event):
         super().changeEvent(event)
-        if event.type() == QEvent.Type.WindowStateChange:
+        if event.type() == QEvent.Type.WindowStateChange and hasattr(self, "grips"):
             self.grips.place()
 
     def go(self, key):
