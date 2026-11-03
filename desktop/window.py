@@ -2,10 +2,11 @@
 import html
 import os
 
-from PySide6.QtCore import QSettings, Qt, QTimer
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout
+from PySide6.QtCore import QEvent, QPoint, QSettings, Qt, QTimer
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout, QWidget
 
-from . import core
+from . import core, motion
+from .frame import Grips, TitleBar, start_move
 from .catalog import GamesPage
 from .dashboard import DashboardPage
 from .home import HomePage, Transient
@@ -18,9 +19,23 @@ NAV = [("dashboard", "tableau-de-bord", "Tableau de bord"), ("servers", "serveur
        ("games", "jeux", "Jeux"), ("prefs", "reglages", "Réglages")]
 
 
+class Sidebar(QFrame):
+    """Menu latéral ; un clic sur une zone vide déplace la fenêtre (elle n'a plus de barre de titre système)."""
+
+    def mousePressEvent(self, event):
+        start_move(self, event)
+
+    def mouseDoubleClickEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.window().titlebar.toggle_maximized()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
+        # Pas de cadre Windows : barre de titre, boutons et bords de redimensionnement sont ceux de l'appli.
+        # Les boutons réduire/agrandir restent déclarés au système (clic sur l'icône de la barre des tâches).
+        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowMinMaxButtonsHint)
         self.settings = QSettings("LANa", "LANa")
         self.advanced = self.settings.value("advanced", False, type=bool)
         self.transient = Transient()
@@ -42,6 +57,12 @@ class MainWindow(QMainWindow):
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
         lay.addWidget(self._sidebar())
+        right = QWidget()
+        column = QVBoxLayout(right)
+        column.setContentsMargins(0, 0, 0, 0)
+        column.setSpacing(0)
+        self.titlebar = TitleBar(self)
+        column.addWidget(self.titlebar)
         self.stack = QStackedWidget()
         self.dashboard = DashboardPage()
         self.home = HomePage()
@@ -51,8 +72,10 @@ class MainWindow(QMainWindow):
         self.pages = {"dashboard": self.dashboard, "servers": self.home, "games": self.games, "prefs": self.prefs}
         for widget in (self.dashboard, self.home, self.page, self.games, self.prefs):
             self.stack.addWidget(widget)
-        lay.addWidget(self.stack, 1)
+        column.addWidget(self.stack, 1)
+        lay.addWidget(right, 1)
         self.setCentralWidget(central)
+        self.grips = Grips(self)
 
         self.dashboard.new_requested.connect(self.new_server)
         self.dashboard.games_requested.connect(lambda: self.go("games"))
@@ -78,7 +101,7 @@ class MainWindow(QMainWindow):
         self.games.load()   # en arrière-plan dès l'ouverture : la page Jeux est prête au premier clic
 
     def _sidebar(self):
-        bar = QFrame()
+        bar = Sidebar()
         bar.setObjectName("sidebar")
         bar.setFixedWidth(250)
         col = QVBoxLayout(bar)
@@ -99,6 +122,11 @@ class MainWindow(QMainWindow):
             self.nav[key] = item
             col.addWidget(item)
         col.addStretch(1)
+        # Repère de l'entrée active : glisse d'une entrée à l'autre (OutBack)
+        self.indicator = QFrame(bar)
+        self.indicator.setObjectName("navindicator")
+        self.indicator.setFixedSize(4, 30)
+        self.indicator_key = None
         self.mode = label("", "caps")
         col.addWidget(self.mode)
         self._show_mode()
@@ -107,12 +135,47 @@ class MainWindow(QMainWindow):
     def _show_mode(self):
         self.mode.setText("MODE AVANCÉ" if self.advanced else "")
 
+    def _show_page(self, widget):
+        if self.stack.currentWidget() is not widget:
+            self.stack.setCurrentWidget(widget)
+            motion.enter(widget)
+
+    def _activate(self, key):
+        for k, item in self.nav.items():
+            item.set_active(k == key)
+        self._place_indicator(animate=self.indicator_key is not None and self.isVisible())
+        self.indicator_key = key
+
+    def _place_indicator(self, animate=True):
+        key = next((k for k, item in self.nav.items() if item.property("active") == "true"), None)
+        if key is None:
+            return
+        item = self.nav[key]
+        target = QPoint(6, item.y() + (item.height() - self.indicator.height()) // 2)
+        if animate:
+            motion.slide(self.indicator, target)
+        else:
+            self.indicator.move(target)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(0, lambda: self._place_indicator(animate=False))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.grips.place()
+        self._place_indicator(animate=False)
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.WindowStateChange:
+            self.grips.place()
+
     def go(self, key):
         """Affiche une page du menu ; la page d'un serveur compte comme « Serveurs »."""
         widget = self.pages.get(key, self.page)
-        self.stack.setCurrentWidget(widget)
-        for k, item in self.nav.items():
-            item.set_active(k == key)
+        self._show_page(widget)
+        self._activate(key)
         if key == "games":
             self.games.load()
         self._render()
@@ -168,9 +231,8 @@ class MainWindow(QMainWindow):
 
     def open_server(self, server_id):
         self.page.show_server(server_id)
-        self.stack.setCurrentWidget(self.page)
-        for k, item in self.nav.items():
-            item.set_active(k == "servers")
+        self._show_page(self.page)
+        self._activate("servers")
         self._render()
 
     def new_server(self, game_id=None):

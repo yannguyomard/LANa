@@ -100,6 +100,11 @@ class Backdrop(QWidget):
                 y += dy
             x += dx
             col += 1
+        # Fenêtre sans cadre système : fin liseré pour la détacher du bureau (inutile une fois agrandie)
+        if not self.window().isMaximized():
+            p.setPen(QPen(QColor(C["line"]), 1))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(0, 0, w - 1, h - 1)
 
 
 class NavItem(QWidget):

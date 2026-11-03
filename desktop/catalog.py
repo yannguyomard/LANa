@@ -3,7 +3,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QFrame, QGridLayout, QHBoxLayout, QLineEdit, QPushButton, QScrollArea,
                                QVBoxLayout, QWidget)
 
-from . import core, visuals
+from . import core, motion, visuals
 from .style import C
 from .widgets import label, run_async, set_prop
 
@@ -72,7 +72,10 @@ class GamesPage(QWidget):
         shown = [g for g in self.games
                  if (self.show_all.isChecked() or g["verdict"]["level"] != "bad") and (not words or words in g["name"].lower())]
         for i, g in enumerate(shown):
-            self.grid.addWidget(self._card(g), i // COLUMNS, i % COLUMNS)
+            card = self._card(g)
+            self.grid.addWidget(card, i // COLUMNS, i % COLUMNS)
+            if i < 12:   # les premières cartes apparaissent en cascade, les suivantes sont hors de vue
+                motion.fade_in(card, delay=i * 35)
         if not shown:
             self.grid.addWidget(label("Aucun jeu ne correspond.", "muted"), 0, 0)
         for c in range(COLUMNS):

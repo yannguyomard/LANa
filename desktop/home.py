@@ -6,6 +6,7 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (QFrame, QHBoxLayout, QProgressBar, QPushButton, QScrollArea, QSizePolicy,
                                QVBoxLayout, QWidget)
 
+from . import motion
 from .widgets import Pill, label, set_prop
 
 
@@ -208,6 +209,7 @@ class HomePage(QWidget):
                 card.open_requested.connect(self.open_requested)
                 card.action_requested.connect(self.action_requested)
                 self.list.insertWidget(i, card)
+                motion.fade_in(card, delay=min(i, 8) * 45)
             card.update_from(server, state_of(server, transient), server.get("game_name", server["game"]))
         for sid in list(self.cards):
             if sid not in seen:

@@ -2,7 +2,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QFrame, QGridLayout, QHBoxLayout, QPushButton, QVBoxLayout, QWidget
 
-from . import visuals
+from . import motion, visuals
 from .home import copy_button, state_of
 from .style import C
 from .widgets import Logo, Pill, label, set_prop
@@ -123,8 +123,10 @@ class DashboardPage(QWidget):
                 old.deleteLater()
         if not running:
             self.live_rows.addWidget(label("Aucun serveur ne tourne. Démarrez-en un depuis « Serveurs ».", "muted"))
-        for s in running:
-            self.live_rows.addWidget(self._row(s, state_of(s, transient)))
+        for i, s in enumerate(running):
+            row = self._row(s, state_of(s, transient))
+            self.live_rows.addWidget(row)
+            motion.fade_in(row, delay=i * 45)
 
     def _row(self, server, state):
         row = QFrame()

@@ -5,7 +5,7 @@ import sys
 from PySide6.QtCore import QLockFile
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from . import core, style
+from . import core, motion, style
 from .widgets import app_icon
 from .window import MainWindow, data_lock_path
 
@@ -28,7 +28,10 @@ def main():
         QMessageBox.information(None, "LANa", "LANa est déjà ouvert sur cet ordinateur.")
         return 0
 
+    glow = motion.HoverGlow(app)   # halo au survol, pour toute l'appli
+    app.installEventFilter(glow)
     window = MainWindow()
+    motion.fade_window(window)
     window.show()
     code = app.exec()
     lock.unlock()

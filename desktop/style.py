@@ -43,6 +43,7 @@ def load_fonts():
 QSS = """
 QWidget { color: %(ink)s; font-family: "%(ui)s"; font-size: 10pt; }
 QMainWindow, QDialog { background: %(bg)s; }
+QDialog#wizard { border: 1px solid %(line)s; }
 #page, #backdrop QStackedWidget { background: transparent; }
 QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }
 QToolTip { background: %(surface2)s; color: %(ink)s; border: 1px solid %(line)s; padding: 4px; }
@@ -66,6 +67,14 @@ QLabel a { color: %(cyan)s; }
 #navitem[active="true"] #navtile { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #1a5f8a, stop:1 #1f8f7a);
                                    border: 1px solid #6fe3c8; }
 #navitem[active="true"] #navtext { color: %(title)s; }
+
+#titlebar { background: transparent; }
+QPushButton#winbtn, QPushButton#winbtn_close { background: transparent; border: none; border-radius: 0; padding: 0; }
+QPushButton#winbtn:hover { background: rgba(255, 255, 255, 0.08); }
+QPushButton#winbtn:pressed { background: rgba(255, 255, 255, 0.14); }
+QPushButton#winbtn_close:hover { background: #e5293a; }
+QPushButton#winbtn_close:pressed { background: #b81f2d; }
+#navindicator { background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 %(cyan)s, stop:1 %(green)s); border-radius: 2px; }
 
 #card { background: rgba(19, 33, 49, 0.88); border: 1px solid %(line)s; border-radius: 12px; }
 #card:hover { border-color: %(teal)s; }
