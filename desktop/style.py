@@ -14,17 +14,25 @@ C = {
 GRADIENT = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #1b6bfa, stop:0.5 #22b8f0, stop:1 #43d64a)"
 GRADIENT_HOVER = "qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #3a82ff, stop:0.5 #45c8f5, stop:1 #5ee865)"
 FONTS = {}
+SYSTEM_FONT = "Bahnschrift"   # livrée avec Windows ; ailleurs, Barlow (libre, OFL) embarquée dans assets/fonts
 
 
 def load_fonts():
-    """Bahnschrift (Windows) pour l'identité : étroite en titres. Ailleurs, police du système en attendant mieux."""
+    """Bahnschrift sous Windows, sinon Barlow embarquée : titres et menu étroits, texte courant normal."""
     installed = set(QFontDatabase.families())
-    system = QFontDatabase.systemFont(QFontDatabase.GeneralFont).family()
-    if "Bahnschrift" in installed:
-        FONTS.update(ui="Bahnschrift", display="Bahnschrift SemiBold SemiCondensed",
-                     nav="Bahnschrift SemiBold SemiCondensed")
+    if SYSTEM_FONT in installed:
+        FONTS.update(ui=SYSTEM_FONT, display="Bahnschrift SemiBold SemiCondensed",
+                     nav="Bahnschrift SemiBold SemiCondensed", strong="normal")
     else:
-        FONTS.update(ui=system, display=system, nav=system)
+        folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "fonts")
+        loaded = set()
+        for fname in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            if fname.endswith(".ttf"):
+                loaded.update(QFontDatabase.applicationFontFamilies(
+                    QFontDatabase.addApplicationFont(os.path.join(folder, fname))))
+        system = QFontDatabase.systemFont(QFontDatabase.GeneralFont).family()
+        narrow = "Barlow Semi Condensed" if "Barlow Semi Condensed" in loaded else system
+        FONTS.update(ui="Barlow" if "Barlow" in loaded else system, display=narrow, nav=narrow, strong="600")
     # Police à chasse fixe du système (Courier New sous Windows) seulement si aucune plus lisible n'est installée.
     FONTS["mono"] = next((f for f in ("Consolas", "Menlo", "DejaVu Sans Mono", "Liberation Mono") if f in installed),
                          QFontDatabase.systemFont(QFontDatabase.FixedFont).family())
@@ -37,20 +45,20 @@ QMainWindow, QDialog { background: %(bg)s; }
 QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }
 QToolTip { background: %(surface2)s; color: %(ink)s; border: 1px solid %(line)s; padding: 4px; }
 
-QLabel[role="h1"] { font-family: "%(display)s"; font-size: 22pt; }
-QLabel[role="h2"] { font-family: "%(display)s"; font-size: 14pt; }
+QLabel[role="h1"] { font-family: "%(display)s"; font-size: 22pt; font-weight: %(strong)s; }
+QLabel[role="h2"] { font-family: "%(display)s"; font-size: 14pt; font-weight: %(strong)s; }
 QLabel[role="muted"] { color: %(mut)s; }
-QLabel[role="caps"] { color: %(mut)s; font-family: "%(nav)s"; font-size: 9pt; letter-spacing: 1px; }
+QLabel[role="caps"] { color: %(mut)s; font-family: "%(nav)s"; font-size: 9pt; font-weight: %(strong)s; letter-spacing: 1px; }
 QLabel[role="mono"] { font-family: "%(mono)s"; color: %(ink2)s; }
 QLabel[role="warn"] { color: %(warn)s; }
 QLabel[role="bad"] { color: %(bad)s; }
-QLabel[role="stat"] { font-family: "%(display)s"; font-size: 26pt; color: %(title)s; }
+QLabel[role="stat"] { font-family: "%(display)s"; font-size: 26pt; font-weight: %(strong)s; color: %(title)s; }
 QLabel a { color: %(cyan)s; }
 
 #sidebar { background: rgba(10, 17, 26, 0.72); border-right: 1px solid %(line_soft)s; }
-#brand { font-family: "%(display)s"; font-size: 18pt; color: %(ink)s; }
+#brand { font-family: "%(display)s"; font-size: 18pt; font-weight: %(strong)s; color: %(ink)s; }
 #navtile { background: rgba(19, 33, 49, 0.9); border: 1px solid %(line)s; border-radius: 10px; }
-#navtext { font-family: "%(nav)s"; font-size: 12pt; color: %(mut)s; letter-spacing: 1px; }
+#navtext { font-family: "%(nav)s"; font-size: 12pt; font-weight: %(strong)s; color: %(mut)s; letter-spacing: 1px; }
 #navitem:hover #navtext { color: %(ink2)s; }
 #navitem:hover #navtile { border-color: %(teal)s; }
 #navitem[active="true"] #navtile { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #1a5f8a, stop:1 #1f8f7a);
@@ -67,11 +75,11 @@ QPushButton { background: rgba(24, 42, 61, 0.9); border: 1px solid %(line)s; bor
 QPushButton:hover { border-color: %(teal)s; }
 QPushButton:disabled { color: %(faint)s; border-color: %(line_soft)s; }
 QPushButton[kind="primary"] { background: %(gradient)s; border: none; color: #ffffff; font-family: "%(nav)s";
-                              font-size: 11pt; padding: 8px 16px; }
+                              font-size: 11pt; font-weight: %(strong)s; padding: 8px 16px; }
 QPushButton[kind="primary"]:hover { background: %(gradient_hover)s; }
 QPushButton[kind="primary"]:disabled { background: #1d3550; color: #7f9db0; }
 QPushButton[kind="stop"] { background: rgba(255, 93, 108, 0.08); border: 1px solid %(bad)s; color: %(bad)s;
-                           font-family: "%(nav)s"; font-size: 11pt; }
+                           font-family: "%(nav)s"; font-size: 11pt; font-weight: %(strong)s; }
 QPushButton[kind="stop"]:hover { background: rgba(255, 93, 108, 0.16); }
 QPushButton[kind="flat"] { background: transparent; border: none; color: %(mut)s; padding: 4px 6px; }
 QPushButton[kind="flat"]:hover { color: %(cyan)s; }
@@ -115,7 +123,7 @@ QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 
 QTabWidget::pane { border: 1px solid %(line)s; border-radius: 12px; top: -1px; background: rgba(19, 33, 49, 0.88); }
 QTabBar::tab { background: transparent; color: %(mut)s; padding: 8px 16px; border-bottom: 2px solid transparent;
-               font-family: "%(nav)s"; font-size: 11pt; }
+               font-family: "%(nav)s"; font-size: 11pt; font-weight: %(strong)s; }
 QTabBar::tab:selected { color: %(title)s; border-bottom-color: %(green)s; }
 QTabBar::tab:hover { color: %(ink)s; }
 
