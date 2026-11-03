@@ -59,7 +59,10 @@ def games_payload():
                     "install_help": spec.get("help", ""), "family": game.get("family", ""),
                     "untested": bool(game.get("untested")), "wine": "wine" in games.needs(game),
                     "versions": versions.kind(game),
-                    "verdict": machine.verdict(game["requirements"], games.needs(game), mach, game.get("compat"))})
+                    "verdict": machine.verdict(game["requirements"], games.needs(game), mach,
+                                               games.cpu_compat(game) or game.get("compat"))})
+    if system.X86_ONLY_BLOCKED:   # téléphone, Raspberry Pi : les jeux installables d'abord
+        out.sort(key=lambda g: g["verdict"]["level"] == "bad")
     return out
 
 

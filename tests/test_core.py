@@ -1395,5 +1395,35 @@ class ModsTests(unittest.TestCase):
         self.assertEqual(mods._strip_bbcode("[img]https://x/y.png[/img] [h1]Salut[/h1] voir https://a.b/c"), "Salut voir")
 
 
+class ArmTests(unittest.TestCase):
+    def test_only_java_servers_on_arm_linux(self):
+        folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "games")
+        get = lambda name: json.load(open(os.path.join(folder, name + ".json"), encoding="utf-8"))
+        original = system.X86_ONLY_BLOCKED
+        try:
+            system.X86_ONLY_BLOCKED = False
+            self.assertIsNone(games.cpu_compat(get("sotf")))
+            system.X86_ONLY_BLOCKED = True
+            self.assertEqual(games.cpu_compat(get("sotf"))["level"], "bad")
+            self.assertEqual(games.cpu_compat(get("enshrouded"))["level"], "bad")
+            self.assertIsNone(games.cpu_compat(get("minecraft")))
+            v = machine.verdict({}, [], {"ram_gb": 12, "disk_free_gb": 100, "tools": {}}, games.cpu_compat(get("valheim")))
+            self.assertEqual(v["level"], "bad")
+        finally:
+            system.X86_ONLY_BLOCKED = original
+
+    def test_android_needs_java_from_termux(self):
+        original_android, original_find = system.IS_ANDROID, machine.find_java
+        try:
+            system.IS_ANDROID, machine.find_java = True, lambda m: None
+            with self.assertRaises(RuntimeError) as ctx:
+                runtime.ensure_java(21, jobs.Job("x"))
+            self.assertIn("pkg install openjdk-21", str(ctx.exception))
+            v = machine.verdict({}, ["java"], {"ram_gb": 12, "disk_free_gb": 100, "tools": {"java": None}})
+            self.assertTrue(any("pkg install" in m for m in v["messages"]))
+        finally:
+            system.IS_ANDROID, machine.find_java = original_android, original_find
+
+
 if __name__ == "__main__":
     unittest.main()

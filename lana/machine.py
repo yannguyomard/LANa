@@ -116,7 +116,8 @@ def verdict(requirements, needs, machine, compat=None):
         messages.append("Espace disque insuffisant : %s Go libres, environ %s Go nécessaires." % (machine["disk_free_gb"], need_disk))
     missing = [t for t in needs if not machine["tools"].get(t)]
     if "java" in missing:
-        messages.append("Java sera téléchargé automatiquement (environ 50 Mo), sans toucher au système.")
+        messages.append("Java à installer dans Termux : « pkg install openjdk-21 » (ou plus récent selon la version du jeu)."
+                        if system.IS_ANDROID else "Java sera téléchargé automatiquement (environ 50 Mo), sans toucher au système.")
         missing.remove("java")
     if missing:
         raise_to("warn")

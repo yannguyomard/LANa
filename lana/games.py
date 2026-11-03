@@ -61,6 +61,17 @@ def platform(game):
     return "linux" if system.IS_LINUX and run_spec(game)["runtime"] != "wine" else "windows"
 
 
+def cpu_compat(game):
+    """Incompatibilité due au processeur (serveur x86 sur Linux ARM), au format de `compat`, ou None.
+
+    Seuls les serveurs Java tournent tels quels sur un téléphone ou un Raspberry Pi.
+    """
+    if system.X86_ONLY_BLOCKED and run_spec(game).get("runtime") != "java":
+        return {"level": "bad", "note": "Serveur prévu pour les processeurs x86 (PC, Mac Intel) : il ne se lance pas sur ce "
+                                        "processeur ARM. Sur téléphone, seuls les serveurs Java (Minecraft) sont proposés."}
+    return None
+
+
 def needs(game):
     """Outils externes requis par le jeu (wine, java…)."""
     runtime = run_spec(game).get("runtime")

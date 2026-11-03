@@ -109,7 +109,7 @@ class Instance:
         eula = game.get("eula")
         if eula and not accept_eula:
             raise InstanceError("Vous devez accepter le contrat de licence : %s" % eula["url"])
-        verdict = machine.verdict(game["requirements"], [], machine.detect(), game.get("compat"))
+        verdict = machine.verdict(game["requirements"], [], machine.detect(), games.cpu_compat(game) or game.get("compat"))
         if verdict["level"] == "bad":
             raise InstanceError(" ".join(verdict["messages"]))
         # Java est téléchargé automatiquement si absent ; les autres outils doivent déjà être là.

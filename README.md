@@ -25,6 +25,25 @@ enregistré dans `~/LANa/auth.json`. Les serveurs installés vivent dans `~/LANa
 
 LANa compare chaque jeu à la machine (RAM, disque, outils) et prévient avant d'installer.
 
+## Android (Termux)
+
+LANa tourne aussi sur un téléphone ou une tablette Android, dans [Termux](https://termux.dev) (à installer depuis F-Droid ou GitHub ; la version du Play Store n'est plus à jour).
+Sur un processeur ARM, seuls les serveurs Java sont proposés : **Minecraft (Java)**, avec Fabric ou Paper et leurs mods. Les autres serveurs sont compilés pour les processeurs x86 et ne s'y lancent pas ; LANa les affiche en fin de liste, avec la raison.
+
+```bash
+pkg install python openjdk-21 git        # openjdk-21 : Minecraft 1.20.5 et plus récent ; « pkg search openjdk » pour les autres
+git clone https://github.com/yannguyomard/LANa.git
+sh LANa/lancer-termux.sh                 # panneau : http://localhost:8765 dans le navigateur du téléphone
+sh LANa/lancer-termux.sh --lan           # ou aussi depuis les autres appareils du wifi
+```
+
+- `lancer-termux.sh` garde le téléphone éveillé tant que LANa tourne (`termux-wake-lock`).
+- Dans les réglages Android, retirez Termux de l'optimisation de la batterie, sinon le serveur s'arrête quand l'écran s'éteint.
+- Coupez tout VPN et l'option qui combine Wi-Fi et données mobiles (« double canal » sur Oppo) : sinon les joueurs du réseau local ne reçoivent pas les réponses du serveur. Ce point a été constaté lors d'un essai de Sons of the Forest sous Winlator.
+- Java n'est pas téléchargé automatiquement sous Android : les JRE publiés pour Linux ne fonctionnent pas sur Android. Il vient de Termux (`pkg install openjdk-21`).
+
+État : **non testé sur un téléphone**. La détection d'Android et du processeur ARM est couverte par les tests unitaires.
+
 ## Jeux
 
 | Jeu | État |
@@ -195,7 +214,7 @@ python3 -m unittest discover -s tests
 ## Structure
 
 ```
-run.py            lanceur (lancer.bat sous Windows)
+run.py            lanceur (lancer.bat sous Windows, lancer-termux.sh sous Android)
 lana/             machine, games, config, runtime (Wine, SteamCMD, processus), system (différences macOS/Linux/Windows), instances, jobs, mods, players, upnp, versions, web
 games/            une définition JSON par jeu
 web/index.html    interface

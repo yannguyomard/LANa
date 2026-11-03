@@ -88,6 +88,9 @@ def ensure_java(min_major, job):
     found = machine.find_java(min_major)
     if found:
         return found
+    if system.IS_ANDROID:   # les JRE publiés pour Linux visent la glibc, absente d'Android : Java vient de Termux
+        raise RuntimeError("Java %d ou plus récent est requis. Dans Termux, tapez « pkg install openjdk-%d » "
+                           "(« pkg search openjdk » liste les versions), puis relancez l'installation." % (min_major, min_major))
     job.log("Java %d introuvable : installation d'un JRE portable (Eclipse Temurin), sans toucher au système." % min_major)
     folder = os.path.join(paths.TOOLS_DIR, "java")
     os.makedirs(folder, exist_ok=True)
