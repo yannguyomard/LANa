@@ -233,13 +233,13 @@ class InstanceLifecycleTests(unittest.TestCase):
 
 
 def read(path):
-    with open(path) as fh:
+    with open(path, encoding="utf-8") as fh:
         return fh.read()
 
 
 def write(path, text, mode="w"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, mode) as fh:
+    with open(path, mode, encoding=None if "b" in mode else "utf-8") as fh:
         fh.write(text)
 
 
