@@ -1,17 +1,21 @@
-"""Fenêtre principale : barre du haut, accueil et page d'un serveur, actions et rafraîchissement."""
+"""Fenêtre principale : menu latéral (tableau de bord, serveurs, jeux, réglages), pages, actions, rafraîchissement."""
 import html
 import os
 
-from PySide6.QtCore import QSettings, Qt, QTimer, QUrl
-from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QMainWindow, QMessageBox,
-                               QPushButton, QStackedWidget, QVBoxLayout, QWidget)
+from PySide6.QtCore import QSettings, Qt, QTimer
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QMainWindow, QMessageBox, QStackedWidget, QVBoxLayout
 
 from . import core
+from .catalog import GamesPage
+from .dashboard import DashboardPage
 from .home import HomePage, Transient
+from .prefs import PrefsPage
 from .server import ServerPage
-from .widgets import Logo, label, run_async, set_prop
+from .widgets import Backdrop, Logo, NavItem, label, run_async
 from .wizard import NewServerDialog
+
+NAV = [("dashboard", "tableau-de-bord", "Tableau de bord"), ("servers", "serveurs", "Serveurs"),
+       ("games", "jeux", "Jeux"), ("prefs", "reglages", "Réglages")]
 
 
 class MainWindow(QMainWindow):
@@ -21,64 +25,110 @@ class MainWindow(QMainWindow):
         self.advanced = self.settings.value("advanced", False, type=bool)
         self.transient = Transient()
         self.servers = []
+        self.machine = None
         self.loading = False
         self.closing_ok = False
 
         self.setWindowTitle("LANa")
-        self.resize(980, 680)
-        self.setMinimumSize(720, 520)
+        self.resize(1100, 720)
+        self.setMinimumSize(860, 560)
         geometry = self.settings.value("geometry")
         if geometry is not None:
             self.restoreGeometry(geometry)
 
-        central = QWidget()
-        lay = QVBoxLayout(central)
+        central = Backdrop()
+        central.setObjectName("backdrop")
+        lay = QHBoxLayout(central)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(0)
-        lay.addWidget(self._topbar())
+        lay.addWidget(self._sidebar())
         self.stack = QStackedWidget()
+        self.dashboard = DashboardPage()
         self.home = HomePage()
         self.page = ServerPage()
-        self.stack.addWidget(self.home)
-        self.stack.addWidget(self.page)
+        self.games = GamesPage()
+        self.prefs = PrefsPage(self.advanced)
+        self.pages = {"dashboard": self.dashboard, "servers": self.home, "games": self.games, "prefs": self.prefs}
+        for widget in (self.dashboard, self.home, self.page, self.games, self.prefs):
+            self.stack.addWidget(widget)
         lay.addWidget(self.stack, 1)
         self.setCentralWidget(central)
 
+        self.dashboard.new_requested.connect(self.new_server)
+        self.dashboard.games_requested.connect(lambda: self.go("games"))
+        self.dashboard.servers_requested.connect(lambda: self.go("servers"))
+        self.dashboard.open_requested.connect(self.open_server)
+        self.dashboard.action_requested.connect(self.act)
         self.home.new_requested.connect(self.new_server)
         self.home.open_requested.connect(self.open_server)
         self.home.action_requested.connect(self.act)
-        self.page.back_requested.connect(lambda: self.stack.setCurrentWidget(self.home))
+        self.page.back_requested.connect(lambda: self.go("servers"))
         self.page.action_requested.connect(self.act)
+        self.games.create_requested.connect(self.new_server)
+        self.prefs.advanced_changed.connect(self.set_advanced)
         self.page.set_advanced(self.advanced)
+        self.games.set_advanced(self.advanced)
 
         core.start_services()
+        run_async(core.machine, done=self._machine_loaded)
         self.timer = QTimer(self, interval=2500, timeout=self.refresh)
         self.timer.start()
+        self.go("dashboard")
         self.refresh()
 
-    def _topbar(self):
+    def _sidebar(self):
         bar = QFrame()
-        bar.setObjectName("topbar")
-        row = QHBoxLayout(bar)
-        row.setContentsMargins(20, 10, 16, 10)
-        row.setSpacing(10)
-        row.addWidget(Logo(26))
-        title = label("LANa", "h2")
-        row.addWidget(title)
-        row.addWidget(label("Serveurs de jeu pour vos amis", "muted"))
-        row.addStretch(1)
+        bar.setObjectName("sidebar")
+        bar.setFixedWidth(250)
+        col = QVBoxLayout(bar)
+        col.setContentsMargins(22, 24, 18, 20)
+        col.setSpacing(8)
+        brand = QHBoxLayout()
+        brand.setSpacing(10)
+        brand.addWidget(Logo(52))
+        name = label("LANa")
+        name.setObjectName("brand")
+        brand.addWidget(name, 1)
+        col.addLayout(brand)
+        col.addSpacing(26)
+        self.nav = {}
+        for key, icon_name, text in NAV:
+            item = NavItem(icon_name, text)
+            item.clicked.connect(lambda key=key: self.go(key))
+            self.nav[key] = item
+            col.addWidget(item)
+        col.addStretch(1)
         self.mode = label("", "caps")
-        row.addWidget(self.mode)
-        prefs = set_prop(QPushButton("Préférences"), "kind", "flat")
-        prefs.clicked.connect(self.preferences)
-        row.addWidget(prefs)
+        col.addWidget(self.mode)
         self._show_mode()
         return bar
 
     def _show_mode(self):
         self.mode.setText("MODE AVANCÉ" if self.advanced else "")
 
+    def go(self, key):
+        """Affiche une page du menu ; la page d'un serveur compte comme « Serveurs »."""
+        widget = self.pages.get(key, self.page)
+        self.stack.setCurrentWidget(widget)
+        for k, item in self.nav.items():
+            item.set_active(k == key)
+        if key == "games":
+            self.games.load()
+        self._render()
+
+    def set_advanced(self, advanced):
+        self.advanced = advanced
+        self.settings.setValue("advanced", advanced)
+        self.page.set_advanced(advanced)
+        self.games.set_advanced(advanced)
+        self._show_mode()
+        self._render()
+
     # ---------- données ----------
+
+    def _machine_loaded(self, machine):
+        self.machine = machine
+        self._render()
 
     def refresh(self):
         if self.loading:
@@ -98,10 +148,11 @@ class MainWindow(QMainWindow):
 
     def _render(self):
         self.home.update_from(self.servers, self.transient)
+        self.dashboard.update_from(self.servers, self.transient, self.machine)
         if self.stack.currentWidget() is self.page:
             current = next((s for s in self.servers if s["id"] == self.page.server_id), None)
             if current is None:
-                self.stack.setCurrentWidget(self.home)
+                self.go("servers")
             else:
                 self.page.update_from(current, self.transient)
 
@@ -113,48 +164,16 @@ class MainWindow(QMainWindow):
     def open_server(self, server_id):
         self.page.show_server(server_id)
         self.stack.setCurrentWidget(self.page)
+        for k, item in self.nav.items():
+            item.set_active(k == "servers")
         self._render()
 
-    def new_server(self):
-        dialog = NewServerDialog(self, self.advanced)
+    def new_server(self, game_id=None):
+        dialog = NewServerDialog(self, self.advanced, game_id or None)
         dialog.changed.connect(self.refresh)
         dialog.start_requested.connect(lambda sid: (self.open_server(sid), self.act(sid, "start")))
         dialog.finished.connect(lambda *_: (self.refresh(), dialog.deleteLater()))
         dialog.open()
-
-    def preferences(self):
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Préférences")
-        lay = QVBoxLayout(dialog)
-        lay.setContentsMargins(22, 18, 22, 18)
-        lay.setSpacing(10)
-        lay.addWidget(label("Préférences", "h2"))
-        adv = QCheckBox("Mode avancé")
-        adv.setChecked(self.advanced)
-        lay.addWidget(adv)
-        lay.addWidget(label("Affiche le journal des serveurs, le choix de version à l'installation, les jeux non testés "
-                            "et les chemins des fichiers.", "muted", wrap=True))
-        lay.addSpacing(8)
-        lay.addWidget(label("Dossier des serveurs", "caps"))
-        row = QHBoxLayout()
-        path = label(core.data_dir(), "mono")
-        path.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        row.addWidget(path, 1)
-        open_dir = QPushButton("Ouvrir")
-        open_dir.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(core.data_dir())))
-        row.addWidget(open_dir)
-        lay.addLayout(row)
-        lay.addWidget(label("LANa %s" % core.VERSION, "muted"))
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok)
-        buttons.accepted.connect(dialog.accept)
-        lay.addWidget(buttons)
-        dialog.setMinimumWidth(460)
-        if dialog.exec():
-            self.advanced = adv.isChecked()
-            self.settings.setValue("advanced", self.advanced)
-            self.page.set_advanced(self.advanced)
-            self._show_mode()
-            self._render()
 
     # ---------- actions ----------
 
@@ -220,7 +239,7 @@ class MainWindow(QMainWindow):
             return
 
         def done(_):
-            self.stack.setCurrentWidget(self.home)
+            self.go("servers")
             self.refresh()
 
         run_async(core.delete, server["id"], done=done,

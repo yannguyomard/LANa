@@ -13,6 +13,7 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from lana import __version__, config, games, instances, jobs, paths, players, upnp, versions, web  # noqa: E402
+from lana import machine as machine_info  # noqa: E402
 from lana.instances import Instance, InstanceError  # noqa: E402,F401
 
 VERSION = __version__
@@ -59,6 +60,10 @@ def _with_job(payload):
     except KeyError:   # jeu retiré de games/ : on garde son identifiant
         payload["game_name"] = payload["game"]
     return payload
+
+
+def machine():
+    return machine_info.detect()
 
 
 def catalog():

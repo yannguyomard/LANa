@@ -124,7 +124,7 @@ class BackupsTab(QWidget):
 
     def _row(self, b):
         row = QFrame()
-        row.setStyleSheet("QFrame#bkrow { border-bottom: 1px solid #2c2c33; }")
+        row.setStyleSheet("QFrame#bkrow { border-bottom: 1px solid #1b3048; }")
         row.setObjectName("bkrow")
         lay = QHBoxLayout(row)
         lay.setContentsMargins(4, 10, 4, 10)

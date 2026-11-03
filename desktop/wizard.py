@@ -17,9 +17,10 @@ class NewServerDialog(QDialog):
     changed = Signal()             # la liste des serveurs a changé
     start_requested = Signal(str)
 
-    def __init__(self, parent, advanced):
+    def __init__(self, parent, advanced, game_id=None):
         super().__init__(parent)
         self.advanced = advanced
+        self.preselect = game_id   # jeu choisi depuis la page « Jeux » : on passe directement à l'étape 2
         self.setWindowTitle("Nouveau serveur")
         self.resize(640, 560)
         self.games = []
@@ -81,6 +82,13 @@ class NewServerDialog(QDialog):
     def _catalog_loaded(self, games):
         self.games = sorted(games, key=lambda g: g["name"].lower())
         self._fill_games()
+        if self.preselect:
+            for i in range(self.game_list.count()):
+                item = self.game_list.item(i)
+                if item.data(Qt.UserRole) and item.data(Qt.UserRole)["id"] == self.preselect:
+                    self.game_list.setCurrentItem(item)
+                    self._next()
+                    break
 
     def _catalog_failed(self, message):
         self.game_list.clear()
