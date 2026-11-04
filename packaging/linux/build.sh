@@ -72,7 +72,8 @@ rm -rf "${P:?}/include" "${P:?}/typesystems" "${P:?}/glue" "${P:?}/scripts" "${P
        "${P:?}/Qt/libexec" "${P:?}/Qt/translations" "${SITE:?}/shiboken6/include" "${SITE:?}/shiboken6_generator" "${SITE:?}/bin"
 for pat in Quick Qml Designer Pdf 3D Help Multimedia Charts DataVisualization Graphs Location Positioning Sensors Bluetooth \
            Nfc RemoteObjects Scxml Serial Sql Test ShaderTools SpatialAudio StateMachine TextToSpeech VirtualKeyboard \
-           HttpServer WebSockets WebChannel WebView NetworkAuth Labs LanguageServer UiTools; do
+           HttpServer WebSockets WebChannel WebView NetworkAuth Labs LanguageServer UiTools \
+           WaylandCompositor WaylandEglCompositorHwIntegration; do   # les deux derniers : le serveur Wayland, inutile ici
   find "${P:?}/Qt/lib" -name "libQt6${pat}*" -delete 2>/dev/null || true
 done
 for d in "$P"/Qt/plugins/*; do   # greffons : l'affichage (xcb, wayland, hors écran), les images et les thèmes
@@ -82,6 +83,7 @@ for d in "$P"/Qt/plugins/*; do   # greffons : l'affichage (xcb, wayland, hors é
     *) rm -rf "${d:?}" ;;
   esac
 done
+find "${P:?}/Qt/plugins/platforminputcontexts" -type f -name 'libqtvirtualkeyboard*' -delete   # dépend de QtVirtualKeyboard, supprimé
 find "${P:?}/Qt/plugins/platforms" -type f \( -name 'libqeglfs*' -o -name 'libqlinuxfb*' -o -name 'libqvnc*' -o -name 'libqvkkhrdisplay*' \) -delete
 find "${P:?}/Qt/plugins/imageformats" -type f ! -name 'libqsvg*' ! -name 'libqjpeg*' ! -name 'libqgif*' ! -name 'libqico*' -delete
 
