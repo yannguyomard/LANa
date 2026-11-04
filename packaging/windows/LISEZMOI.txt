@@ -1,0 +1,18 @@
+LANa pour Windows — version portable
+====================================
+
+Lancer : double-cliquez sur LANa.exe. Rien à installer : Python et Qt sont fournis.
+Ne séparez pas LANa.exe des dossiers python\ et app\.
+
+Au premier lancement, Windows SmartScreen peut avertir (application non signée) :
+« Informations complémentaires » puis « Exécuter quand même ».
+
+Vos serveurs, mondes et sauvegardes sont dans %USERPROFILE%\LANa
+(ou dans le dossier indiqué par la variable LANA_HOME). Supprimer ce dossier
+portable ne les efface pas.
+
+En cas de problème, le journal de l'appli est dans %USERPROFILE%\LANa\appli.log.
+
+Windows 10 (version 1809) ou plus récent, 64 bits.
+
+Code source et aide : https://github.com/yannguyomard/LANa
