@@ -52,6 +52,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: essai-linux-${{ matrix.arch }}
-          path: packaging/linux/build/smoke/
+          path: |
+            packaging/linux/build/smoke/app.log
+            packaging/linux/build/smoke/ecran.png
           if-no-files-found: warn
           retention-days: 14
