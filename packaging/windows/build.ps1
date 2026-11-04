@@ -15,7 +15,7 @@ $here = $PSScriptRoot
 $repo = (Resolve-Path (Join-Path $here "..\..")).Path
 $build = Join-Path $here "build"
 $cache = Join-Path $build "cache"
-$stage = Join-Path $build "LANa"
+$stage = Join-Path $build "sortie\LANa"
 $version = (Select-String -Path (Join-Path $repo "lana\__init__.py") -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
 $zip = Join-Path $build "LANa-$version-windows-x64.zip"
 Write-Host "LANa $version : Python $PythonVersion, PySide6 $PySideVersion"
@@ -132,6 +132,6 @@ Write-Host ("Dossier LANa : " + (Size $stage))
 if (Test-Path $zip) { Remove-Item -Force $zip }
 # Archive faite par Python : l'antivirus analyse longuement LANa.exe juste après sa création et le garde ouvert ;
 # Compress-Archive exige un accès exclusif et échoue, la lecture partagée de Python passe.
-& $python -c "import shutil, sys; shutil.make_archive(sys.argv[1][:-4], 'zip', sys.argv[2], 'LANa')" $zip $build
+& $python -c "import shutil, sys; shutil.make_archive(sys.argv[1][:-4], 'zip', sys.argv[2], 'LANa')" $zip (Split-Path $stage)
 if ($LASTEXITCODE -ne 0) { throw "Archive non créée" }
 Write-Host ("Archive : $zip ({0:N0} Mo)" -f ((Get-Item $zip).Length / 1MB))

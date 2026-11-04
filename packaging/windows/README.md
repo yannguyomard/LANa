@@ -30,7 +30,11 @@ fenêtre noire) et LANa peut leur envoyer Ctrl+Pause pour les arrêter propremen
 ## Antivirus
 
 Le lanceur n'est pas signé. Bitdefender l'a mis en quarantaine juste après sa compilation (2026-11-04), puis a
-empêché de le recréer : un petit exécutable inconnu qui lance un programme sans fenêtre est un profil surveillé.
+continué de bloquer les emplacements où il l'avait trouvé : un petit exécutable inconnu qui lance un programme sans
+fenêtre est un profil surveillé. Les utilisateurs de Bitdefender risquent donc de voir LANa.exe supprimé.
 Pistes : signaler le faux positif à l'éditeur de l'antivirus, et signer l'exécutable (certificat de signature
-de code, ou SignPath, gratuit pour les projets libres). Pour fabriquer malgré tout, exclure `packaging\windows\build`
-de l'analyse.
+de code, ou SignPath, gratuit pour les projets libres).
+
+Pour fabriquer malgré tout : exclure `packaging\windows\build` de l'analyse (antivirus et surveillance des
+comportements). Le paquet est assemblé dans `build\sortie\` ; un ancien emplacement resté bloqué par l'antivirus
+peut être supprimé après un redémarrage.
