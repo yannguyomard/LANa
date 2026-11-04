@@ -7,17 +7,22 @@ import os
 import shutil
 import sys
 import threading
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from lana import __version__, config, games, instances, jobs, paths, players, upnp, versions, web  # noqa: E402
+from lana import machine as machine_info  # noqa: E402
 from lana.instances import Instance, InstanceError  # noqa: E402,F401
 
 VERSION = __version__
 _installs = {}          # id du serveur -> tâche d'installation en cours ou finie (durée de vie de l'appli)
 _services = threading.Event()
+_catalog = {"at": 0.0, "games": None}
+_catalog_lock = threading.Lock()
+CATALOG_SECONDS = 60   # le catalogue dépend des outils installés (Java…) : relu au bout d'une minute
 
 
 def start_services():
@@ -36,11 +41,15 @@ def data_dir():
 
 # ---------- lecture ----------
 
-def servers():
+def servers(detail_id=None):
+    """Tous les serveurs. Détail complet (réglages, UPnP, sauvegardes…) seulement pour celui qu'on affiche
+    (detail_id) et pour ceux qui tournent (leur adresse) ; les autres en résumé, bien plus rapide à lire."""
     out = []
     for inst in instances.list_all():
         try:
-            out.append(_with_job(web.instance_payload(inst)))
+            summary = inst.status()
+            full = inst.id == detail_id or summary["running"]
+            out.append(_with_job(web.instance_payload(inst) if full else summary))
         except Exception as ex:  # noqa: BLE001 - un serveur abîmé ne doit pas cacher les autres
             out.append({"id": inst.id, "name": inst.id, "game": "?", "installed": False, "running": False,
                         "broken": str(ex), "job": None})
@@ -61,8 +70,17 @@ def _with_job(payload):
     return payload
 
 
+def machine():
+    return machine_info.detect()
+
+
 def catalog():
-    return web.games_payload()
+    """Catalogue des jeux avec le verdict pour cette machine. Le calcul détecte les outils (Java…) et prend
+    plusieurs secondes sur une machine lente : gardé une minute, partagé entre la page Jeux et l'assistant."""
+    with _catalog_lock:
+        if _catalog["games"] is None or time.time() - _catalog["at"] > CATALOG_SECONDS:
+            _catalog.update(games=web.games_payload(), at=time.time())
+        return _catalog["games"]
 
 
 def game(game_id):

@@ -1,8 +1,11 @@
-"""Briques communes : travail en arrière-plan, logo, pastille d'état."""
-from PySide6.QtCore import QObject, QRectF, QRunnable, Qt, QThreadPool, Signal
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPixmap
-from PySide6.QtWidgets import QLabel, QWidget
+"""Briques communes : travail en arrière-plan, logo, fond, menu latéral, pastille d'état."""
+import math
 
+from PySide6.QtCore import QObject, QPointF, QRunnable, Qt, QThreadPool, Signal
+from PySide6.QtGui import QColor, QPainter, QPen, QPixmap, QRadialGradient
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QWidget
+
+from . import visuals
 from .style import C
 
 _alive = set()   # garde les signaux en vie jusqu'à leur livraison
@@ -52,43 +55,108 @@ def run_async(fn, *args, done=None, failed=None):
     QThreadPool.globalInstance().start(task)
 
 
-# Logo 8×8 du panneau : (x, y, largeur, hauteur, couleur, opacité)
-LOGO = [(1, 1, 3, 3, "acc2", 1), (4, 4, 3, 3, "ok", 1), (4, 1, 3, 1, "acc2", .55), (1, 5, 3, 1, "acc2", .55)]
+class Logo(QLabel):
+    """Logo LANa (desktop/assets/logo.svg)."""
 
-
-def paint_logo(painter, rect):
-    s = rect.width() / 8
-    painter.setRenderHint(QPainter.Antialiasing)
-    path = QPainterPath()
-    path.addRoundedRect(rect, 1.2 * s, 1.2 * s)
-    painter.fillPath(path, QColor(C["acc"]))
-    painter.setRenderHint(QPainter.Antialiasing, False)
-    for x, y, w, h, col, op in LOGO:
-        painter.setOpacity(op)
-        painter.fillRect(QRectF(rect.x() + x * s, rect.y() + y * s, w * s, h * s), QColor(C[col]))
-    painter.setOpacity(1)
+    def __init__(self, size=40, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(size, size)
+        self.setPixmap(visuals.logo_pixmap(size))
 
 
 def app_icon():
-    icon = QIcon()
-    for size in (16, 24, 32, 48, 64, 128, 256):
-        pix = QPixmap(size, size)
-        pix.fill(Qt.transparent)
-        p = QPainter(pix)
-        paint_logo(p, QRectF(0, 0, size, size))
-        p.end()
-        icon.addPixmap(pix)
-    return icon
+    return visuals.app_icon()
 
 
-class Logo(QWidget):
-    def __init__(self, size=28, parent=None):
+class Backdrop(QWidget):
+    """Fond de la fenêtre : bleu nuit, halos sarcelle dans les coins et réseau d'hexagones discret.
+
+    Le réseau d'hexagones (des centaines de polygones) est dessiné une seule fois dans une image à la taille de
+    l'écran, puis recopié : redessiné à chaque image d'un redimensionnement, il ralentissait tout l'affichage."""
+    HEX = 46.0
+
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(size, size)
+        self._grid = None
+
+    def _grid_for(self, w, h):
+        if self._grid is None or self._grid.width() < w or self._grid.height() < h:
+            screen = self.screen().size() if self.screen() else self.size()
+            gw, gh = max(w, screen.width()), max(h, screen.height())
+            grid = QPixmap(gw, gh)
+            grid.fill(Qt.transparent)
+            p = QPainter(grid)
+            p.setRenderHint(QPainter.Antialiasing)
+            pen = QPen(QColor(60, 140, 150, 26))
+            pen.setWidthF(1.0)
+            p.setPen(pen)
+            size = self.HEX
+            dx, dy = size * 1.5, size * math.sqrt(3)
+            col, x = 0, -size
+            while x < gw + size:
+                y = -dy + (dy / 2 if col % 2 else 0)
+                while y < gh + dy:
+                    p.drawPolygon([QPointF(x + size * math.cos(math.radians(a)), y + size * math.sin(math.radians(a)))
+                                   for a in range(0, 360, 60)])
+                    y += dy
+                x += dx
+                col += 1
+            p.end()
+            self._grid = grid
+        return self._grid
 
     def paintEvent(self, _):
         p = QPainter(self)
-        paint_logo(p, QRectF(0, 0, self.width(), self.height()))
+        w, h = self.width(), self.height()
+        p.fillRect(self.rect(), QColor(C["bg"]))
+        for cx, cy, radius, color in ((0, h, max(w, h) * 0.55, QColor(26, 90, 90, 70)),
+                                      (w, 0, max(w, h) * 0.5, QColor(35, 110, 100, 60)),
+                                      (w * 0.55, h * 0.35, max(w, h) * 0.45, QColor(27, 107, 250, 18))):
+            grad = QRadialGradient(cx, cy, radius)
+            grad.setColorAt(0, color)
+            grad.setColorAt(1, QColor(0, 0, 0, 0))
+            p.fillRect(self.rect(), grad)
+        p.drawPixmap(0, 0, self._grid_for(w, h), 0, 0, w, h)
+        # Fenêtre sans cadre système : fin liseré pour la détacher du bureau (inutile une fois agrandie)
+        if not self.window().isMaximized():
+            p.setPen(QPen(QColor(C["line"]), 1))
+            p.setBrush(Qt.NoBrush)
+            p.drawRect(0, 0, w - 1, h - 1)
+
+
+class NavItem(QWidget):
+    """Entrée du menu latéral : tuile avec icône, libellé en capitales."""
+    clicked = Signal()
+
+    def __init__(self, icon_name, text):
+        super().__init__()
+        self.setObjectName("navitem")
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setCursor(Qt.PointingHandCursor)
+        self.icon_name = icon_name
+        row = QHBoxLayout(self)
+        row.setContentsMargins(4, 4, 4, 4)
+        row.setSpacing(14)
+        self.tile = QLabel()
+        self.tile.setObjectName("navtile")
+        self.tile.setFixedSize(46, 46)
+        self.tile.setAlignment(Qt.AlignCenter)
+        self.text = QLabel(text.upper())
+        self.text.setObjectName("navtext")
+        row.addWidget(self.tile)
+        row.addWidget(self.text, 1)
+        self.set_active(False)
+
+    def set_active(self, active):
+        set_prop(self, "active", "true" if active else "false")
+        for child in (self.tile, self.text):
+            child.style().unpolish(child)
+            child.style().polish(child)
+        self.tile.setPixmap(visuals.icon_pixmap(self.icon_name, "#e9fffb" if active else C["mut"], 24))
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
 
 
 class Pill(QLabel):

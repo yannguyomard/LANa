@@ -110,7 +110,7 @@ class ServerPage(QWidget):
 
         line = QFrame()
         line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet("color: #2c2c33;")
+        line.setStyleSheet("color: #1b3048;")
         lay.addWidget(line)
         foot = QHBoxLayout()
         self.folder = label("", "muted")

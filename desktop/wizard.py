@@ -6,10 +6,16 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QFileDialog, QHBox
                                QListWidgetItem, QPlainTextEdit, QProgressBar, QPushButton, QStackedWidget,
                                QVBoxLayout, QWidget)
 
-from . import core
+from . import core, motion
+from .frame import WindowButton, start_move
 from .widgets import label, run_async, set_prop
 
 LEVEL_TEXT = {"ok": "", "warn": "⚠ ", "bad": "✕ "}
+
+
+class DragBar(QWidget):
+    def mousePressEvent(self, event):
+        start_move(self, event)
 
 
 class NewServerDialog(QDialog):
@@ -17,10 +23,14 @@ class NewServerDialog(QDialog):
     changed = Signal()             # la liste des serveurs a changé
     start_requested = Signal(str)
 
-    def __init__(self, parent, advanced):
+    def __init__(self, parent, advanced, game_id=None):
         super().__init__(parent)
         self.advanced = advanced
+        self.preselect = game_id   # jeu choisi depuis la page « Jeux » : on passe directement à l'étape 2
         self.setWindowTitle("Nouveau serveur")
+        self.setObjectName("wizard")
+        self.setWindowFlags(Qt.Dialog | Qt.FramelessWindowHint)   # pas de cadre Windows, comme la fenêtre principale
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.resize(640, 560)
         self.games = []
         self.chosen = None
@@ -33,7 +43,14 @@ class NewServerDialog(QDialog):
         root.setSpacing(14)
         self.step = label("", "caps")
         self.title = label("", "h1")
-        root.addWidget(self.step)
+        top_bar = DragBar()   # ligne du haut : la seule qui déplace l'assistant
+        top = QHBoxLayout(top_bar)
+        top.setContentsMargins(0, 0, 0, 0)
+        top.addWidget(self.step, 1)
+        close = WindowButton("fenetre-fermer", "Fermer", danger=True)
+        close.clicked.connect(self.reject)
+        top.addWidget(close, 0, Qt.AlignTop)
+        root.addWidget(top_bar)
         root.addWidget(self.title)
         self.pages = QStackedWidget()
         root.addWidget(self.pages, 1)
@@ -81,6 +98,13 @@ class NewServerDialog(QDialog):
     def _catalog_loaded(self, games):
         self.games = sorted(games, key=lambda g: g["name"].lower())
         self._fill_games()
+        if self.preselect:
+            for i in range(self.game_list.count()):
+                item = self.game_list.item(i)
+                if item.data(Qt.UserRole) and item.data(Qt.UserRole)["id"] == self.preselect:
+                    self.game_list.setCurrentItem(item)
+                    self._next()
+                    break
 
     def _catalog_failed(self, message):
         self.game_list.clear()
@@ -212,8 +236,16 @@ class NewServerDialog(QDialog):
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(10)
+        state = QHBoxLayout()
+        state.setSpacing(12)
+        self.spinner = motion.Spinner(24)
+        self.check = motion.CheckMark(44)
+        self.check.hide()
         self.status = label("", "muted", wrap=True)
-        lay.addWidget(self.status)
+        state.addWidget(self.spinner, 0, Qt.AlignTop)
+        state.addWidget(self.check, 0, Qt.AlignTop)
+        state.addWidget(self.status, 1)
+        lay.addLayout(state)
         self.bar = QProgressBar()
         self.bar.setRange(0, 0)
         self.bar.setTextVisible(False)
@@ -278,6 +310,10 @@ class NewServerDialog(QDialog):
             self._finished(snap["state"] == "done", last)
 
     def _finished(self, ok, message):
+        self.spinner.hide()
+        if ok:
+            self.check.show()
+            self.check.play()
         self.bar.setRange(0, 1)
         self.bar.setValue(1 if ok else 0)
         self.changed.emit()
@@ -343,3 +379,9 @@ class NewServerDialog(QDialog):
         elif self.instance_id:
             self.start_requested.emit(self.instance_id)
             self.accept()
+
+    # ---------- fenêtre sans cadre ----------
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        motion.fade_window(self)
