@@ -69,7 +69,10 @@ find "${P:?}" -maxdepth 1 -name 'Qt*.abi3.so' ! -name 'QtCore.*' ! -name 'QtGui.
 find "${P:?}" -maxdepth 1 \( -name '*.pyi' -o -name 'libpyside6qml*' \) -delete
 find "${P:?}" -maxdepth 1 -type f -perm -u+x ! -name 'lib*' ! -name '*.so' -delete   # outils : uic, rcc, designer…
 rm -rf "${P:?}/include" "${P:?}/typesystems" "${P:?}/glue" "${P:?}/scripts" "${P:?}/Qt/qml" "${P:?}/Qt/metatypes" \
-       "${P:?}/Qt/libexec" "${P:?}/Qt/translations" "${SITE:?}/shiboken6/include" "${SITE:?}/shiboken6_generator" "${SITE:?}/bin"
+       "${P:?}/Qt/libexec" "${SITE:?}/shiboken6/include" "${SITE:?}/shiboken6_generator" "${SITE:?}/bin"
+# On ne garde que la traduction française des boutons standard de Qt (Annuler, Oui, Non…), chargée par desktop/__main__.py.
+find "${P:?}/Qt/translations" -type f ! -name 'qtbase_fr.qm' -delete 2>/dev/null || true
+[ -f "$P/Qt/translations/qtbase_fr.qm" ] || echo "Avertissement : qtbase_fr.qm absent de PySide6, les boutons standard de Qt resteront en anglais." >&2
 for pat in Quick Qml Designer Pdf 3D Help Multimedia Charts DataVisualization Graphs Location Positioning Sensors Bluetooth \
            Nfc RemoteObjects Scxml Serial Sql Test ShaderTools SpatialAudio StateMachine TextToSpeech VirtualKeyboard \
            HttpServer WebSockets WebChannel WebView NetworkAuth Labs LanguageServer UiTools \

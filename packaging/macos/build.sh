@@ -81,6 +81,7 @@ for d in "$P"/Qt/plugins/*; do
 done
 find "$P/Qt/plugins/imageformats" -type f ! -name 'libqsvg*' ! -name 'libqicns*' ! -name 'libqico*' ! -name 'libqpng*' -delete
 find "$P/Qt/translations" -type f ! -name 'qtbase_fr.qm' -delete 2>/dev/null || true
+[ -f "$P/Qt/translations/qtbase_fr.qm" ] || echo "Avertissement : qtbase_fr.qm absent de PySide6, les boutons standard de Qt resteront en anglais." >&2
 
 # 6. LANa (moteur, jeux, polices, appli de bureau), précompilé
 mkdir -p "$RES/LANa"
