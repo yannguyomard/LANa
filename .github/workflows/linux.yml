@@ -1,0 +1,55 @@
+name: Linux (AppImage)
+
+# Lancé à la main (onglet Actions → Linux (AppImage) → Run workflow) : construit l'AppImage pour x86_64 et aarch64,
+# l'essaie dans un écran virtuel et garde le résultat 14 jours. Rien ne se lance tout seul.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  appimage:
+    name: AppImage ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construire l'AppImage
+        run: sh packaging/linux/build.sh
+
+      - name: Installer de quoi essayer une fenêtre (écran virtuel)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends xvfb xdotool imagemagick x11-utils \
+            libxcb-cursor0 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-render-util0 \
+            libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libgl1 libegl1 libfontconfig1 libdbus-1-3
+
+      - name: Essai de démarrage
+        run: sh packaging/linux/smoke-test.sh packaging/linux/build/LANa-*-linux-${{ matrix.arch }}.AppImage
+
+      - name: Garder l'AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: LANa-linux-${{ matrix.arch }}
+          path: packaging/linux/build/LANa-*-linux-${{ matrix.arch }}.AppImage
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Garder la capture et le journal de l'essai
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: essai-linux-${{ matrix.arch }}
+          path: packaging/linux/build/smoke/
+          if-no-files-found: warn
+          retention-days: 14

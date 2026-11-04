@@ -190,6 +190,22 @@ sh packaging/macos/build.sh      # → packaging/macos/build/LANa.app et LANa-<v
 
 État : construite et lancée sur Mac Intel (macOS 15) ; la fenêtre s'ouvre au nom de LANa, les polices du panneau se chargent, et l'accueil, la page d'un serveur et ses réglages s'affichent. Pas encore essayée sur Apple Silicon.
 
+## Linux (AppImage)
+
+`LANa-<version>-linux-<arch>.AppImage` : un seul fichier, l'appli de bureau (`desktop/`) avec un Python et Qt intégrés, pour x86_64 et aarch64 (Raspberry Pi, serveurs ARM).
+
+```bash
+chmod +x LANa-*-linux-*.AppImage
+./LANa-*-linux-*.AppImage            # sans FUSE : ./LANa-*.AppImage --appimage-extract-and-run
+```
+
+- **Construction** : le workflow GitHub « Linux (AppImage) » (onglet Actions → Run workflow, lancé à la main) construit les deux architectures, les essaie dans un écran virtuel (fenêtre « LANa » présente, capture d'écran enregistrée) et garde le résultat 14 jours. Sous Linux, `sh packaging/linux/build.sh` construit l'AppImage de la machine.
+- **Compatibilité** : glibc 2.28 ou plus en x86_64 (Debian 10, Ubuntu 20.04, RHEL 8…), 2.31 ou plus en aarch64 (Ubuntu 20.04, Raspberry Pi OS Bookworm). La version de PySide6 est choisie pour cela : 6.9.3 en x86_64, 6.8.0.2 en aarch64.
+- **Sous X11**, Qt 6 demande `libxcb-cursor0` (Debian, Ubuntu), `xcb-util-cursor` (Fedora, Arch). L'AppImage le signale dans le terminal quand elle manque.
+- **Contenu** : Python ([python-build-standalone](https://github.com/astral-sh/python-build-standalone)), PySide6 réduit à QtCore, QtGui, QtWidgets, QtSvg et leurs greffons, LANa. Python, appimagetool et leurs empreintes SHA-256 sont fixés dans `build.sh` ; chaque suppression du script est protégée contre une variable vide.
+
+État : **écrite sans machine Linux, pas encore construite ni essayée**. Le premier lancement du workflow dira si la construction et le démarrage en écran virtuel passent ; un essai sur un vrai bureau reste à faire.
+
 ## Systèmes
 
 | Système | État |

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=LANa
+GenericName=Serveurs de jeu
+Comment=Installer et administrer des serveurs de jeu pour vos amis
+Exec=AppRun
+Icon=LANa
+Categories=Game;Utility;
+Terminal=false
+StartupWMClass=LANa
