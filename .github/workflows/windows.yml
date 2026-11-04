@@ -1,0 +1,43 @@
+name: Windows (zip portable)
+
+# Lancé à la main (onglet Actions → Windows (zip portable) → Run workflow) : fabrique la version portable Windows
+# avec packaging/windows/build.ps1 (qui essaie aussi la fenêtre de l'appli) et garde le résultat 14 jours.
+# Rien ne se lance tout seul.
+#
+# Signature : SignPath Foundation (gratuit pour les logiciels libres) ne signe que des fichiers fabriqués ici, sur
+# les machines de GitHub, à partir du code public. L'étape de signature sera ajoutée après l'acceptation du projet
+# par SignPath : elle enverra l'artefact « LANa-windows-x64 » (le dossier LANa\) et récupérera LANa.exe signé.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zip:
+    name: Zip portable x64
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Fabriquer le zip (Python embarqué, PySide6 réduit, lanceur)
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File packaging\windows\build.ps1
+
+      # Le dossier LANa\ tel quel : c'est lui que SignPath recevra (l'artefact est zippé par GitHub).
+      - name: Garder le dossier LANa
+        uses: actions/upload-artifact@v7
+        with:
+          name: LANa-windows-x64
+          path: packaging/windows/build/sortie/LANa
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Garder le zip
+        uses: actions/upload-artifact@v7
+        with:
+          name: LANa-windows-x64-zip
+          path: packaging/windows/build/LANa-*-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14

@@ -278,6 +278,55 @@ web/index.html    interface
 tests/            tests unitaires (aucun ne lance Wine)
 ```
 
+## Ce que LANa change sur la machine
+
+- **Fichiers** : tout ce que LANa installe (serveurs, mondes, sauvegardes, SteamCMD, Java, préfixes Wine, Debian sous Android)
+  va dans `~/LANa` (`%USERPROFILE%\LANa` sous Windows) ou dans le dossier indiqué par `LANA_HOME`. Rien n'est écrit
+  dans les dossiers du système.
+- **Réglages de la fenêtre** : taille et position, dans `HKEY_CURRENT_USER\Software\LANa` sous Windows,
+  `~/Library/Preferences/com.lana.LANa.plist` sous macOS, `~/.config/LANa/` sous Linux.
+- **Box Internet** : quand un serveur démarre, LANa demande à la box d'ouvrir ses ports par UPnP, et les referme à
+  l'arrêt (voir « Ports et UPnP »). Chaque ouverture expire d'elle-même au bout d'une heure si LANa n'est plus là
+  pour la renouveler. Une case par serveur la désactive.
+- LANa n'installe pas de service, ne se lance pas au démarrage de l'ordinateur et ne modifie pas le pare-feu.
+
+## Désinstaller
+
+1. Arrêter les serveurs et quitter LANa.
+2. Supprimer l'appli : le dossier `LANa` décompressé (Windows), `LANa.app` (macOS) ou le fichier `.AppImage` (Linux).
+3. Pour effacer aussi les serveurs, mondes et sauvegardes : supprimer le dossier `~/LANa`
+   (`%USERPROFILE%\LANa` sous Windows). **Les mondes sont perdus** : exportez d'abord ceux à garder (page Sauvegardes).
+4. Facultatif, les réglages de la fenêtre : `reg delete HKCU\Software\LANa /f` sous Windows, ou les fichiers
+   indiqués plus haut sous macOS et Linux.
+
+## Signature du code (Code signing policy)
+
+Le lanceur Windows `LANa.exe` doit être signé par SignPath Foundation (demande en cours).
+
+> Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)
+
+- **Ce qui est signé** : uniquement les fichiers fabriqués à partir de ce dépôt par GitHub Actions
+  (`.github/workflows/windows.yml`), jamais un fichier fabriqué sur un ordinateur personnel. Les programmes tiers
+  embarqués (Python, Qt) gardent la signature de leurs éditeurs, ou n'en ont pas ; ils ne sont pas signés au nom de LANa.
+- **Rôles** :
+  - auteurs et relecteurs (*committers and reviewers*) : [Yann Guyomard](https://github.com/yannguyomard) ;
+  - approbation de chaque signature (*approvers*) : [Yann Guyomard](https://github.com/yannguyomard).
+- Chaque version signée correspond à une version publiée dans les [Releases](https://github.com/yannguyomard/LANa/releases).
+
+### Vie privée (Privacy policy)
+
+LANa ne collecte rien : pas de compte, pas de statistiques, pas de télémétrie, aucune donnée envoyée à l'auteur.
+
+> This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it.
+
+Les seules connexions sont celles qu'entraînent les actions de l'utilisateur :
+- **téléchargements** demandés en installant ou en mettant à jour un serveur : fichiers des jeux et des outils
+  depuis leurs sources officielles (Steam/SteamCMD, Mojang, PaperMC, Fabric, Modrinth, Thunderstore, uMod,
+  GitHub, Adoptium pour Java, Microsoft pour .NET) ;
+- **listes de versions et de mods** de ces mêmes sources, affichées dans l'appli ;
+- **UPnP** vers la box du réseau local, pour ouvrir les ports d'un serveur démarré (désactivable par serveur) ;
+- **les joueurs** qui se connectent aux serveurs de jeu lancés par l'utilisateur.
+
 ## Licence
 
 LANa est distribuée sous licence MIT (voir `LICENSE`). Elle ne couvre que le code de LANa : SteamCMD, Java (Eclipse Temurin)

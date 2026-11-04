@@ -11,6 +11,11 @@ Vos serveurs, mondes et sauvegardes sont dans %USERPROFILE%\LANa
 (ou dans le dossier indiqué par la variable LANA_HOME). Supprimer ce dossier
 portable ne les efface pas.
 
+Désinstaller : quittez LANa, puis supprimez ce dossier. Pour effacer aussi
+les serveurs, mondes et sauvegardes, supprimez %USERPROFILE%\LANa
+(exportez d'abord les mondes à garder). Réglages de la fenêtre :
+reg delete HKCU\Software\LANa /f
+
 En cas de problème, le journal de l'appli est dans %USERPROFILE%\LANa\appli.log.
 
 Windows 10 (version 1809) ou plus récent, 64 bits.
