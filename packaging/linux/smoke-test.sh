@@ -11,7 +11,7 @@ export APPIMAGE_EXTRACT_AND_RUN=1
 export QT_QPA_PLATFORM=xcb
 status=0
 xvfb-run -a -s "-screen 0 1400x900x24" sh -c '
-  "$0" >"$1/app.log" 2>&1 &
+  setsid "$0" >"$1/app.log" 2>&1 &   # son propre groupe : on arrête l'appli et ses enfants d'un coup
   pid=$!
   found=
   for i in $(seq 1 120); do
@@ -19,11 +19,11 @@ xvfb-run -a -s "-screen 0 1400x900x24" sh -c '
     kill -0 "$pid" 2>/dev/null || break
     sleep 1
   done
-  sleep 4
+  sleep 8   # laisse finir les chargements en arrière-plan (état de la machine, serveurs) avant la capture
   import -window root "$1/ecran.png" || true
   alive=
   kill -0 "$pid" 2>/dev/null && alive=1
-  kill "$pid" 2>/dev/null || true
+  kill -TERM -- "-$pid" 2>/dev/null || kill "$pid" 2>/dev/null || true
   wait "$pid" 2>/dev/null || true
   [ -n "$found" ] && [ -n "$alive" ]
 ' "$APPIMAGE" "$OUT" || status=$?
