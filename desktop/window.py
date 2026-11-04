@@ -318,8 +318,10 @@ class MainWindow(QMainWindow):
         except Exception:  # noqa: BLE001 - au pire on ferme sans demander
             running = []
         if not running:
+            # Pas de self.close() ici : Qt ignore un close() rappelé pendant une fermeture, et la taille de la
+            # fenêtre n'était alors jamais enregistrée (signalé par la session Mac).
             self.closing_ok = True
-            self.close()
+            self.settings.setValue("geometry", self.saveGeometry())
             event.accept()
             return
         event.ignore()
