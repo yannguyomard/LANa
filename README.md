@@ -204,7 +204,7 @@ chmod +x LANa-*-linux-*.AppImage
 - **Sous X11**, Qt 6 demande `libxcb-cursor0` (Debian, Ubuntu), `xcb-util-cursor` (Fedora, Arch). L'AppImage le signale dans le terminal quand elle manque.
 - **Contenu** : Python ([python-build-standalone](https://github.com/astral-sh/python-build-standalone)), PySide6 réduit à QtCore, QtGui, QtWidgets, QtSvg et leurs greffons, LANa. Python, appimagetool et leurs empreintes SHA-256 sont fixés dans `build.sh` ; chaque suppression du script est protégée contre une variable vide.
 
-État : **écrite sans machine Linux, pas encore construite ni essayée**. Le premier lancement du workflow dira si la construction et le démarrage en écran virtuel passent ; un essai sur un vrai bureau reste à faire.
+État : construite et lancée sur GitHub pour x86_64 et aarch64 (Ubuntu 24.04) : la fenêtre « LANa » apparaît dans un écran virtuel et l'appli tourne encore quelques secondes plus tard (AppImage de 57 Mo en x86_64, 52 Mo en aarch64). **Jamais essayée sur un vrai bureau Linux.** Pour récupérer une AppImage : onglet Actions → Linux (AppImage) → Run workflow, puis les fichiers en bas de l'exécution.
 
 ## Systèmes
 

@@ -4,8 +4,6 @@ name: Linux (AppImage)
 # l'essaie dans un écran virtuel et garde le résultat 14 jours. Rien ne se lance tout seul.
 on:
   workflow_dispatch:
-  push:
-    branches: [emballage-linux]   # TEMPORAIRE : essai de la branche, à retirer avant la fusion dans main
 
 permissions:
   contents: read
